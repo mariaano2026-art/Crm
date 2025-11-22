@@ -1,0 +1,7 @@
+{
+  "name": "ConstrutoraGPT CRM",
+  "description": "A comprehensive CRM for construction companies featuring AI-driven WhatsApp automation, cold lead re-engagement, and property management.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
