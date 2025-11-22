@@ -2,7 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { useCRM } from '../context/CRMContext';
 import { Property, PropertyUnit } from '../types';
-import { Edit2, MapPin, Home, Save, Plus, Image as ImageIcon, Film, Layout, Trash2, Upload, Grid, BedDouble, Bath, Loader2 } from 'lucide-react';
+import { Edit2, MapPin, Home, Save, Plus, Image as ImageIcon, Film, Layout, Trash2, Upload, Grid, BedDouble, Bath, Loader2, Download } from 'lucide-react';
 
 const Properties: React.FC = () => {
   const { properties, updateProperty, addProperty } = useCRM();
@@ -531,13 +531,16 @@ const Properties: React.FC = () => {
     <div className="p-8 bg-gray-50 min-h-screen">
       <div className="flex justify-between items-center mb-8">
         <h2 className="text-2xl font-bold text-gray-800">Imóveis & Empreendimentos</h2>
-        <button 
-            onClick={startAdd}
-            className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-700 transition shadow-sm"
-        >
-            <Plus size={20} />
-            Novo Imóvel
-        </button>
+        
+        <div className="flex gap-2">
+            <button 
+                onClick={startAdd}
+                className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-700 transition shadow-sm ml-2"
+            >
+                <Plus size={20} />
+                Novo Imóvel
+            </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">

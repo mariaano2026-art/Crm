@@ -9,6 +9,7 @@ import Settings from './pages/Settings';
 import Sandbox from './pages/Sandbox';
 import Pipeline from './pages/Pipeline';
 import Blacklist from './pages/Blacklist';
+import DataManagement from './pages/DataManagement';
 import { CRMProvider, useCRM } from './context/CRMContext';
 
 const MainContent: React.FC = () => {
@@ -25,6 +26,7 @@ const MainContent: React.FC = () => {
       case 'settings': return <Settings />;
       case 'sandbox': return <Sandbox />;
       case 'blacklist': return <Blacklist />;
+      case 'data-management': return <DataManagement />;
       default: return <Dashboard />;
     }
   };

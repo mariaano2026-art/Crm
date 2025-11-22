@@ -55,6 +55,11 @@ interface CRMContextType {
   removeFromBlacklist: (phone: string) => void;
   updateApiKey: (key: string) => void;
   isAiReady: boolean;
+  exportData: () => void;
+  importData: (jsonData: string) => boolean;
+  exportProperties: () => void;
+  importProperties: (jsonData: string) => boolean;
+  clearAllData: () => void;
 }
 
 const CRMContext = createContext<CRMContextType | undefined>(undefined);
@@ -108,26 +113,50 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [whatsappStatus, setWhatsappStatus] = useState<'connected' | 'disconnected'>('disconnected');
   const [isAiReady, setIsAiReady] = useState<boolean>(isAIConfigured());
   
-  const [userAttentionTriggers, setUserAttentionTriggers] = useState<string[]>([
-      'humano', 'atendente', 'pessoa', 'falar com alguém', 
-      'ligação', 'me liga', 'ligar', 
-      'visita', 'agendar', 'marcar',
-      'não sei', 'não consigo', 'ajuda'
-  ]);
-  const [aiAttentionTriggers, setAiAttentionTriggers] = useState<string[]>([
-      'vou chamar', 'transferir', 'um momento', 'não tenho essa informação', 'agendada', 'visita confirmada'
-  ]);
+  const [userAttentionTriggers, setUserAttentionTriggers] = useState<string[]>(() => {
+      const saved = localStorage.getItem('crm_user_triggers');
+      return saved ? JSON.parse(saved) : [
+        'humano', 'atendente', 'pessoa', 'falar com alguém', 
+        'ligação', 'me liga', 'ligar', 
+        'visita', 'agendar', 'marcar',
+        'não sei', 'não consigo', 'ajuda'
+      ];
+  });
+  
+  const [aiAttentionTriggers, setAiAttentionTriggers] = useState<string[]>(() => {
+      const saved = localStorage.getItem('crm_ai_triggers');
+      return saved ? JSON.parse(saved) : [
+        'vou chamar', 'transferir', 'um momento', 'não tenho essa informação', 'agendada', 'visita confirmada'
+      ];
+  });
 
-  const [followUpConfig, setFollowUpConfig] = useState<FollowUpConfig>(DEFAULT_FOLLOWUP_CONFIG);
-  const [aiPauseDuration, setAiPauseDuration] = useState<number>(30);
-  const [timerSettings, setTimerSettings] = useState<MessageTimerSettings>(DEFAULT_TIMER_SETTINGS);
-  const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(VOICE_PRESETS[2]); // Default to Kore (Female/Calm)
+  const [followUpConfig, setFollowUpConfig] = useState<FollowUpConfig>(() => {
+      const saved = localStorage.getItem('crm_followup_config');
+      return saved ? JSON.parse(saved) : DEFAULT_FOLLOWUP_CONFIG;
+  });
+
+  const [aiPauseDuration, setAiPauseDuration] = useState<number>(() => {
+      const saved = localStorage.getItem('crm_ai_pause');
+      return saved ? Number(saved) : 30;
+  });
+
+  const [timerSettings, setTimerSettings] = useState<MessageTimerSettings>(() => {
+      const saved = localStorage.getItem('crm_timers');
+      return saved ? JSON.parse(saved) : DEFAULT_TIMER_SETTINGS;
+  });
+
+  const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(() => {
+      const saved = localStorage.getItem('crm_voice');
+      return saved ? JSON.parse(saved) : VOICE_PRESETS[2]; // Default to Kore (Female/Calm)
+  });
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const intervalRef = useRef<number | null>(null);
   const soundLoopRef = useRef<number | null>(null);
 
   // --- SAVE TO LOCAL STORAGE EFFECTS ---
+  
+  // 1. Leads
   useEffect(() => {
       try {
           localStorage.setItem('crm_leads', JSON.stringify(leads));
@@ -136,6 +165,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
   }, [leads]);
 
+  // 2. Properties (Handle Quota)
   useEffect(() => {
       try {
           const json = JSON.stringify(properties);
@@ -157,13 +187,16 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
   }, [properties]);
 
-  useEffect(() => {
-      localStorage.setItem('crm_system_instruction', systemInstruction);
-  }, [systemInstruction]);
+  // 3. Other Settings
+  useEffect(() => { localStorage.setItem('crm_system_instruction', systemInstruction); }, [systemInstruction]);
+  useEffect(() => { localStorage.setItem('crm_blacklist', JSON.stringify(blacklist)); }, [blacklist]);
+  useEffect(() => { localStorage.setItem('crm_user_triggers', JSON.stringify(userAttentionTriggers)); }, [userAttentionTriggers]);
+  useEffect(() => { localStorage.setItem('crm_ai_triggers', JSON.stringify(aiAttentionTriggers)); }, [aiAttentionTriggers]);
+  useEffect(() => { localStorage.setItem('crm_followup_config', JSON.stringify(followUpConfig)); }, [followUpConfig]);
+  useEffect(() => { localStorage.setItem('crm_timers', JSON.stringify(timerSettings)); }, [timerSettings]);
+  useEffect(() => { localStorage.setItem('crm_voice', JSON.stringify(voiceSettings)); }, [voiceSettings]);
+  useEffect(() => { localStorage.setItem('crm_ai_pause', aiPauseDuration.toString()); }, [aiPauseDuration]);
 
-  useEffect(() => {
-      localStorage.setItem('crm_blacklist', JSON.stringify(blacklist));
-  }, [blacklist]);
   // -------------------------------------
 
   useEffect(() => {
@@ -300,6 +333,100 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const currentTriggers = source === 'user' ? userAttentionTriggers : aiAttentionTriggers;
       return currentTriggers.some(t => lowerText.includes(t.toLowerCase()));
   };
+
+  // --- EXPORT / IMPORT / CLEAR DATA ---
+  const exportData = () => {
+      const data = {
+          leads,
+          properties,
+          blacklist,
+          systemInstruction,
+          userAttentionTriggers,
+          aiAttentionTriggers,
+          followUpConfig,
+          aiPauseDuration,
+          timerSettings,
+          voiceSettings,
+          apiKey: localStorage.getItem('crm_gemini_api_key') || '',
+          timestamp: new Date().toISOString()
+      };
+      
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `backup-crm-${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+  };
+
+  const importData = (jsonString: string): boolean => {
+      try {
+          const data = JSON.parse(jsonString);
+          
+          // Validate basic structure
+          if (!data.leads || !data.properties) {
+              throw new Error("Arquivo inválido");
+          }
+
+          // Restore State
+          setLeads(data.leads);
+          setProperties(data.properties);
+          setBlacklist(data.blacklist || []);
+          setSystemInstruction(data.systemInstruction || DEFAULT_SYSTEM_PROMPT);
+          setUserAttentionTriggers(data.userAttentionTriggers || []);
+          setAiAttentionTriggers(data.aiAttentionTriggers || []);
+          if (data.followUpConfig) setFollowUpConfig(data.followUpConfig);
+          if (data.aiPauseDuration) setAiPauseDuration(data.aiPauseDuration);
+          if (data.timerSettings) setTimerSettings(data.timerSettings);
+          if (data.voiceSettings) setVoiceSettings(data.voiceSettings);
+          if (data.apiKey) updateApiKey(data.apiKey);
+
+          return true;
+      } catch (e) {
+          console.error("Import error:", e);
+          return false;
+      }
+  };
+
+  // --- PROPERTIES ONLY IMPORT/EXPORT ---
+  const exportProperties = () => {
+      const blob = new Blob([JSON.stringify(properties, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `imoveis-backup-${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+  };
+
+  const importProperties = (jsonString: string): boolean => {
+      try {
+          const data = JSON.parse(jsonString);
+          if (Array.isArray(data)) {
+              // Basic validation to check if items look like properties
+              const isValid = data.every(p => p.id && p.name);
+              if (!isValid) throw new Error("Formato inválido. Esperava-se uma lista de imóveis.");
+              
+              setProperties(data);
+              return true;
+          }
+          return false;
+      } catch (e) {
+          console.error("Properties Import error:", e);
+          return false;
+      }
+  };
+
+  const clearAllData = () => {
+      localStorage.clear();
+      window.location.reload();
+  };
+  // ------------------------------------
 
   const sendMessage = useCallback(async (text: string, sender: 'user' | 'agent', isMedia = false, mediaUrl?: string, mediaType: 'image' | 'video' | 'audio' = 'image') => {
     if (!selectedLeadId) return;
@@ -579,7 +706,12 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addToBlacklist,
       removeFromBlacklist,
       updateApiKey,
-      isAiReady
+      isAiReady,
+      exportData,
+      importData,
+      exportProperties,
+      importProperties,
+      clearAllData
     }}>
       {children}
     </CRMContext.Provider>

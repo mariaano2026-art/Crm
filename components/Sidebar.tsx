@@ -1,6 +1,6 @@
 import React from 'react';
 import { useCRM } from '../context/CRMContext';
-import { LayoutDashboard, Users, MessageSquare, Building2, Settings, LogOut, Brain, FlaskConical, Bell, Kanban, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, Users, MessageSquare, Building2, Settings, LogOut, Brain, FlaskConical, Bell, Kanban, ShieldAlert, Database } from 'lucide-react';
 import { View } from '../types';
 
 const Sidebar: React.FC = () => {
@@ -60,6 +60,8 @@ const Sidebar: React.FC = () => {
         <NavItem view="training" icon={Brain} label="Instruções IA" />
         <NavItem view="blacklist" icon={ShieldAlert} label="Blacklist" />
         <NavItem view="sandbox" icon={FlaskConical} label="Simulador IA" />
+        <div className="my-2 border-t border-gray-100"></div>
+        <NavItem view="data-management" icon={Database} label="Backup & Dados" />
         <NavItem view="settings" icon={Settings} label="Configurações" />
       </nav>
 

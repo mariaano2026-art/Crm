@@ -1,7 +1,6 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useCRM } from '../context/CRMContext';
-import { MessageSquare, Shield, Key, Server, CheckCircle, AlertCircle, Copy, ExternalLink, Brain, Zap, Lock, QrCode, Smartphone, RefreshCw, Wifi, Eye, EyeOff, Save } from 'lucide-react';
+import { MessageSquare, Key, Server, CheckCircle, AlertCircle, Copy, ExternalLink, Zap, QrCode, Wifi, Eye, EyeOff, Save, Trash2, RefreshCw, Brain } from 'lucide-react';
 
 const Settings: React.FC = () => {
   const { whatsappStatus, setWhatsappStatus, updateApiKey, isAiReady } = useCRM();
@@ -24,7 +23,7 @@ const Settings: React.FC = () => {
   });
 
   const [isTesting, setIsTesting] = useState(false);
-
+  
   useEffect(() => {
       // Load existing key from storage if available for the placeholder (don't show it fully)
       const stored = localStorage.getItem('crm_gemini_api_key');
@@ -345,7 +344,7 @@ const Settings: React.FC = () => {
 
             {/* Right Column: Guide */}
             <div className="space-y-6">
-                 {/* AI Configuration Input - NEW */}
+                 {/* AI Configuration Input */}
                  <div className="bg-indigo-50 rounded-xl shadow-sm border border-indigo-100 p-6">
                     <h3 className="font-bold text-indigo-900 mb-4 flex items-center gap-2">
                         <Key size={18} />
@@ -398,33 +397,6 @@ const Settings: React.FC = () => {
                     <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="mt-4 block w-full text-center py-2 text-xs text-indigo-600 hover:underline flex items-center justify-center gap-1">
                         Obter chave gratuita no Google AI Studio <ExternalLink size={12}/>
                     </a>
-                </div>
-
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                    <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-                        <Shield size={18} className="text-gray-400" />
-                        Sobre os Métodos
-                    </h3>
-                    
-                    <div className="space-y-4">
-                        <div className="p-3 bg-gray-50 rounded-lg">
-                            <h4 className="font-semibold text-sm text-gray-900 mb-1 flex items-center gap-2">
-                                <Server size={14} /> API Oficial (Meta)
-                            </h4>
-                            <p className="text-xs text-gray-500">
-                                Mais estável. Requer verificação da empresa no Facebook. Ideal para alto volume de mensagens.
-                            </p>
-                        </div>
-                        
-                        <div className="p-3 bg-gray-50 rounded-lg">
-                            <h4 className="font-semibold text-sm text-gray-900 mb-1 flex items-center gap-2">
-                                <QrCode size={14} /> QR Code (Emulador)
-                            </h4>
-                            <p className="text-xs text-gray-500">
-                                Conexão rápida simulando WhatsApp Web. Ideal para testes ou uso pessoal. Depende do celular estar ligado.
-                            </p>
-                        </div>
-                    </div>
                 </div>
             </div>
 
