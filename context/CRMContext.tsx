@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Lead, Property, Message, View, LeadStatus, FollowUpConfig, MessageTimerSettings, VoiceSettings } from '../types';
 import { MOCK_LEADS, MOCK_PROPERTIES, DEFAULT_FOLLOWUP_CONFIG, DEFAULT_TIMER_SETTINGS, VOICE_PRESETS } from '../constants';
-import { generateAIResponse, generateFollowUp, classifyLeadTemperature, generateAudioFromText } from '../services/geminiService';
+import { generateAIResponse, generateFollowUp, classifyLeadTemperature, generateAudioFromText, isAIConfigured } from '../services/geminiService';
 
 const DEFAULT_SYSTEM_PROMPT = `Você é uma IA de atendimento para uma construtora. Aja como um corretor humano experiente no WhatsApp.
 
@@ -53,6 +53,8 @@ interface CRMContextType {
   blacklist: string[];
   addToBlacklist: (phone: string) => void;
   removeFromBlacklist: (phone: string) => void;
+  updateApiKey: (key: string) => void;
+  isAiReady: boolean;
 }
 
 const CRMContext = createContext<CRMContextType | undefined>(undefined);
@@ -104,6 +106,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Load Settings from storage or default
   const [systemInstruction, setSystemInstruction] = useState(() => localStorage.getItem('crm_system_instruction') || DEFAULT_SYSTEM_PROMPT);
   const [whatsappStatus, setWhatsappStatus] = useState<'connected' | 'disconnected'>('disconnected');
+  const [isAiReady, setIsAiReady] = useState<boolean>(isAIConfigured());
   
   const [userAttentionTriggers, setUserAttentionTriggers] = useState<string[]>([
       'humano', 'atendente', 'pessoa', 'falar com alguém', 
@@ -278,6 +281,15 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setLeads(prev => prev.map(l => l.phone === phone && l.status === LeadStatus.NO_AI ? { ...l, status: LeadStatus.NEW } : l));
   };
   // ------------------------------------------
+
+  const updateApiKey = (key: string) => {
+      if (key) {
+          localStorage.setItem('crm_gemini_api_key', key);
+      } else {
+          localStorage.removeItem('crm_gemini_api_key');
+      }
+      setIsAiReady(isAIConfigured());
+  };
 
   const resetFollowUpConfig = () => {
       setFollowUpConfig(DEFAULT_FOLLOWUP_CONFIG);
@@ -565,7 +577,9 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setVoiceSettings,
       blacklist,
       addToBlacklist,
-      removeFromBlacklist
+      removeFromBlacklist,
+      updateApiKey,
+      isAiReady
     }}>
       {children}
     </CRMContext.Provider>

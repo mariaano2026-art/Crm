@@ -3,16 +3,24 @@ import { GoogleGenAI, Modality } from "@google/genai";
 import { Property, Lead, Message, LeadStatus, FollowUpConfig } from "../types";
 
 const getAIClient = () => {
-  // Using the key from environment as per instructions
-  if (!process.env.API_KEY) {
+  // 1. Tenta pegar do .env
+  let apiKey = process.env.API_KEY;
+  
+  // 2. Se não tiver no .env, tenta pegar do LocalStorage (configurado via UI)
+  if (!apiKey) {
+      apiKey = localStorage.getItem('crm_gemini_api_key') || undefined;
+  }
+
+  if (!apiKey) {
     console.warn("API_KEY is missing. AI features will not work.");
     return null;
   }
-  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  return new GoogleGenAI({ apiKey });
 };
 
 export const isAIConfigured = (): boolean => {
-  return !!process.env.API_KEY;
+  const apiKey = process.env.API_KEY || localStorage.getItem('crm_gemini_api_key');
+  return !!apiKey;
 };
 
 /**
@@ -160,7 +168,7 @@ export const generateAIResponse = async (
   systemInstructionRaw: string
 ): Promise<string> => {
   const client = getAIClient();
-  if (!client) return "⚠️ Erro de Configuração: Chave da API Gemini não detectada nas variáveis de ambiente (API_KEY).";
+  if (!client) return "⚠️ Erro de Configuração: Chave da API Gemini não configurada. Vá em Configurações e insira sua API Key.";
 
   // Construct context about properties including detailed unit info
   const propertyContext = properties.map(p => {
@@ -250,7 +258,6 @@ MÍDIA GERAL DISPONÍVEL: [Fotos: ${hasPhotos}, Vídeo: ${hasVideo}, Planta/Layo
       config: {
         systemInstruction: fullSystemInstruction,
         temperature: 0.7, // Criatividade controlada
-        // maxOutputTokens removed to allow the thinking model to manage token budget if needed
       }
     });
     return response.text || "Desculpe, não consegui processar sua resposta agora.";

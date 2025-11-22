@@ -1,14 +1,17 @@
+
 import React, { useState, useEffect } from 'react';
 import { useCRM } from '../context/CRMContext';
-import { isAIConfigured } from '../services/geminiService';
-import { MessageSquare, Shield, Key, Server, CheckCircle, AlertCircle, Copy, ExternalLink, Brain, Zap, Lock, QrCode, Smartphone, RefreshCw, Wifi } from 'lucide-react';
+import { MessageSquare, Shield, Key, Server, CheckCircle, AlertCircle, Copy, ExternalLink, Brain, Zap, Lock, QrCode, Smartphone, RefreshCw, Wifi, Eye, EyeOff, Save } from 'lucide-react';
 
 const Settings: React.FC = () => {
-  const { whatsappStatus, setWhatsappStatus } = useCRM();
-  const aiConfigured = isAIConfigured();
+  const { whatsappStatus, setWhatsappStatus, updateApiKey, isAiReady } = useCRM();
   
   // Connection Method Toggle
   const [connectionMethod, setConnectionMethod] = useState<'api' | 'qrcode'>('api');
+  
+  // API Key State
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
 
   // QR Code State
   const [qrStatus, setQrStatus] = useState<'idle' | 'generating' | 'ready' | 'expired'>('idle');
@@ -21,6 +24,25 @@ const Settings: React.FC = () => {
   });
 
   const [isTesting, setIsTesting] = useState(false);
+
+  useEffect(() => {
+      // Load existing key from storage if available for the placeholder (don't show it fully)
+      const stored = localStorage.getItem('crm_gemini_api_key');
+      if (stored) {
+          setApiKeyInput(stored);
+      }
+  }, []);
+
+  const handleSaveApiKey = () => {
+      updateApiKey(apiKeyInput);
+      alert("Chave API Salva com Sucesso! O sistema usará esta chave para se conectar à IA.");
+  };
+
+  const handleClearApiKey = () => {
+      updateApiKey("");
+      setApiKeyInput("");
+      alert("Chave API Removida.");
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -123,20 +145,20 @@ const Settings: React.FC = () => {
                         </div>
 
                         {/* AI Status */}
-                        <div className={`p-4 rounded-lg border ${aiConfigured ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'}`}>
+                        <div className={`p-4 rounded-lg border ${isAiReady ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'}`}>
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2 font-medium text-gray-800">
                                     <Brain size={18} /> Inteligência Artificial
                                 </div>
-                                {aiConfigured 
+                                {isAiReady 
                                     ? <CheckCircle size={18} className="text-green-600" />
                                     : <AlertCircle size={18} className="text-orange-600" />
                                 }
                             </div>
-                            <p className={`text-xs ${aiConfigured ? 'text-green-700' : 'text-orange-800'}`}>
-                                {aiConfigured 
+                            <p className={`text-xs ${isAiReady ? 'text-green-700' : 'text-orange-800'}`}>
+                                {isAiReady 
                                     ? 'API Key detectada. IA pronta.' 
-                                    : 'API Key ausente. Verifique variáveis.'}
+                                    : 'API Key ausente. Insira sua chave ao lado.'}
                             </p>
                         </div>
                     </div>
@@ -319,49 +341,62 @@ const Settings: React.FC = () => {
                         )}
                     </div>
                 </div>
-
-                {/* Webhook Config Card (Only relevant for API, but kept for info) */}
-                {connectionMethod === 'api' && (
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 animate-fadeIn">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                            <Server size={20} className="text-blue-600" />
-                            Configuração do Webhook
-                        </h3>
-                        <CopyField 
-                            label="URL de Callback (Webhook)" 
-                            value="https://api.crm-construtora.com/v1/webhook/wh_8a72b9c1" 
-                        />
-                        <CopyField 
-                            label="Token de Verificação (Verify Token)" 
-                            value="crm_secure_token_2024" 
-                        />
-                    </div>
-                )}
             </div>
 
             {/* Right Column: Guide */}
             <div className="space-y-6">
-                 {/* AI Info Card */}
+                 {/* AI Configuration Input - NEW */}
                  <div className="bg-indigo-50 rounded-xl shadow-sm border border-indigo-100 p-6">
-                    <h3 className="font-bold text-indigo-900 mb-2 flex items-center gap-2">
-                        <Lock size={18} />
-                        Segurança da Chave API
+                    <h3 className="font-bold text-indigo-900 mb-4 flex items-center gap-2">
+                        <Key size={18} />
+                        Configuração da API Key
                     </h3>
-                    <p className="text-sm text-indigo-800 leading-relaxed">
-                        Por motivos de segurança, a chave da Inteligência Artificial (Gemini) <strong>não pode</strong> ser inserida na tela do sistema.
+                    
+                    <p className="text-sm text-indigo-800 mb-4 leading-relaxed">
+                        Como não foi detectada uma chave de ambiente (.env), você pode inserir sua chave pessoal aqui. Ela será salva no seu navegador.
                     </p>
                     
-                    <div className="mt-4 bg-white p-3 rounded border border-indigo-100">
-                        <p className="text-xs font-mono text-gray-600 mb-1">Como configurar:</p>
-                        <p className="text-xs text-gray-500 mb-2">1. Crie uma chave no Google AI Studio.</p>
-                        <p className="text-xs text-gray-500 mb-2">2. Adicione ao seu arquivo <code>.env</code>:</p>
-                        <code className="block bg-gray-800 text-green-400 p-2 rounded text-xs">
-                            API_KEY=AIzaSy...
-                        </code>
+                    <div className="space-y-3">
+                         <div>
+                             <label className="block text-xs font-bold text-indigo-700 mb-1 uppercase">Google Gemini API Key</label>
+                             <div className="relative">
+                                 <input 
+                                    type={showApiKey ? "text" : "password"}
+                                    className="w-full pr-10 pl-3 py-2 rounded border border-indigo-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                                    placeholder="AIzaSy..."
+                                    value={apiKeyInput}
+                                    onChange={(e) => setApiKeyInput(e.target.value)}
+                                 />
+                                 <button 
+                                    onClick={() => setShowApiKey(!showApiKey)}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-indigo-600"
+                                 >
+                                     {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                                 </button>
+                             </div>
+                         </div>
+                         
+                         <div className="flex gap-2 pt-2">
+                             <button 
+                                onClick={handleSaveApiKey}
+                                className="flex-1 bg-indigo-600 text-white py-2 rounded text-sm font-bold hover:bg-indigo-700 flex items-center justify-center gap-2"
+                             >
+                                 <Save size={16} /> Salvar Chave
+                             </button>
+                             {apiKeyInput && (
+                                 <button 
+                                     onClick={handleClearApiKey}
+                                     className="px-3 py-2 border border-red-200 text-red-500 rounded hover:bg-red-50"
+                                     title="Remover Chave"
+                                 >
+                                     X
+                                 </button>
+                             )}
+                         </div>
                     </div>
 
-                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="mt-4 block w-full text-center py-2 text-sm bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg transition-colors flex items-center justify-center gap-1">
-                        Gerar Chave no Google AI Studio <ExternalLink size={14}/>
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="mt-4 block w-full text-center py-2 text-xs text-indigo-600 hover:underline flex items-center justify-center gap-1">
+                        Obter chave gratuita no Google AI Studio <ExternalLink size={12}/>
                     </a>
                 </div>
 
@@ -389,12 +424,6 @@ const Settings: React.FC = () => {
                                 Conexão rápida simulando WhatsApp Web. Ideal para testes ou uso pessoal. Depende do celular estar ligado.
                             </p>
                         </div>
-                    </div>
-                    
-                    <div className="mt-4 pt-4 border-t border-gray-100">
-                         <a href="#" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                            Comparativo completo de APIs <ExternalLink size={10}/>
-                        </a>
                     </div>
                 </div>
             </div>
