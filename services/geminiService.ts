@@ -4,18 +4,22 @@ import { Property, Lead, Message, LeadStatus, FollowUpConfig } from "../types";
 
 const getAIClient = () => {
   // 1. Tenta pegar do .env
-  let apiKey = process.env.API_KEY;
+  let apiKey: string | undefined = process.env.API_KEY;
   
   // 2. Se não tiver no .env, tenta pegar do LocalStorage (configurado via UI)
   if (!apiKey) {
-      apiKey = localStorage.getItem('crm_gemini_api_key') || undefined;
+      const storedKey = localStorage.getItem('crm_gemini_api_key');
+      if (storedKey) {
+          apiKey = storedKey;
+      }
   }
 
   if (!apiKey) {
     console.warn("API_KEY is missing. AI features will not work.");
     return null;
   }
-  return new GoogleGenAI({ apiKey });
+  // TypeScript Fix: Explicitly cast to string as we confirmed it's not null/undefined above
+  return new GoogleGenAI({ apiKey: apiKey as string });
 };
 
 export const isAIConfigured = (): boolean => {

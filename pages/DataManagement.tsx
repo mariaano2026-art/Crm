@@ -1,3 +1,4 @@
+
 import React, { useRef } from 'react';
 import { useCRM } from '../context/CRMContext';
 import { Database, Download, Upload, FileJson, Shield, AlertTriangle, Trash2, CheckCircle } from 'lucide-react';
@@ -75,7 +76,13 @@ const DataManagement: React.FC = () => {
                     </div>
                     <h3 className="text-lg font-bold text-gray-800 mb-2">Backup Completo do Sistema</h3>
                     <p className="text-sm text-gray-500 mb-6 min-h-[40px]">
-                        Salva <strong>tudo</strong>: Leads, histórico de conversas, lista de imóveis, configurações da IA, timers e voz.
+                        Salva <strong>TUDO</strong> o que você configurou:
+                        <ul className="list-disc pl-4 mt-2 space-y-1 text-xs">
+                            <li>Diretrizes da IA e Prompts de Treinamento</li>
+                            <li>Personalidade e Configurações de Voz</li>
+                            <li>Imóveis, Leads e Histórico de Conversas</li>
+                            <li>Blacklist e Regras de Follow-up</li>
+                        </ul>
                     </p>
 
                     <div className="space-y-3">
