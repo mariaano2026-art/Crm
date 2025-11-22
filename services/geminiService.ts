@@ -250,7 +250,7 @@ MÍDIA GERAL DISPONÍVEL: [Fotos: ${hasPhotos}, Vídeo: ${hasVideo}, Planta/Layo
       config: {
         systemInstruction: fullSystemInstruction,
         temperature: 0.7, // Criatividade controlada
-        maxOutputTokens: 800,
+        // maxOutputTokens removed to allow the thinking model to manage token budget if needed
       }
     });
     return response.text || "Desculpe, não consegui processar sua resposta agora.";
