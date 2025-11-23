@@ -1,4 +1,5 @@
 
+
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Lead, Property, Message, View, LeadStatus, FollowUpConfig, MessageTimerSettings, VoiceSettings } from '../types';
 import { MOCK_LEADS, MOCK_PROPERTIES, DEFAULT_FOLLOWUP_CONFIG, DEFAULT_TIMER_SETTINGS, VOICE_PRESETS } from '../constants';
@@ -351,6 +352,12 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return currentTriggers.some(t => lowerText.includes(t.toLowerCase()));
   };
 
+  const detectPropertyFromContext = (text: string): Property | undefined => {
+      const lower = text.toLowerCase();
+      // Simple logic: check if property name is inside the text
+      return properties.find(p => lower.includes(p.name.toLowerCase()));
+  };
+
   const exportData = () => {
       const data = {
           leads,
@@ -516,46 +523,100 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
              
              const rawResponseText = await generateAIResponse(freshLead, properties, historyForAI, systemInstruction);
              
-             // --- EXTRAÇÃO DE TAGS DE MÍDIA (Movido para antes da decisão de envio) ---
+             // --- EXTRAÇÃO DE TAGS DE MÍDIA E LÓGICA DE SELEÇÃO INTELIGENTE ---
+             const photoRegex = /\[SEND[-_\s]?PHOTO\]/i;
+             const videoRegex = /\[SEND[-_\s]?VIDEO\]/i;
+             const planRegex = /\[SEND[-_\s]?PLAN\]/i;
+
              let finalText = rawResponseText;
              let mediaToSend: { url: string, type: 'image' | 'video', caption: string } | null = null;
-             const interestedProp = properties.find(p => p.id === freshLead.interestedInId) || properties[0];
+             
+             // 1. Tenta identificar o imóvel pelo contexto da conversa se o Lead não tiver um fixo
+             let interestedProp = properties.find(p => p.id === freshLead.interestedInId);
+             
+             if (!interestedProp) {
+                 // Fallback: Tenta achar o nome do imóvel na mensagem do usuário ou na resposta da IA
+                 const combinedText = contextText + " " + rawResponseText;
+                 interestedProp = detectPropertyFromContext(combinedText);
+                 
+                 // Se ainda assim não achar, usa o primeiro (comportamento padrão, mas agora minimizado)
+                 if (!interestedProp && properties.length > 0) {
+                     interestedProp = properties[0];
+                 }
+             }
 
              if (interestedProp) {
-                if (rawResponseText.includes('[SEND_PHOTO]')) {
+                // Se a gente detectou um imóvel novo pelo contexto, atualiza o lead para focar nesse imóvel
+                if (interestedProp.id !== freshLead.interestedInId) {
+                    setLeads(prev => prev.map(l => l.id === selectedLeadId ? { ...l, interestedInId: interestedProp!.id } : l));
+                }
+
+                if (photoRegex.test(rawResponseText)) {
                     const imgUrl = (interestedProp.images && interestedProp.images.length > 0) 
                         ? interestedProp.images[0] 
                         : interestedProp.imageUrl;
                     mediaToSend = { url: imgUrl, type: 'image', caption: `📸 Foto: ${interestedProp.name}` };
-                    finalText = rawResponseText.replace('[SEND_PHOTO]', '').trim();
+                    finalText = rawResponseText.replace(photoRegex, '').trim();
                 }
-                else if (rawResponseText.includes('[SEND_VIDEO]')) {
+                else if (videoRegex.test(rawResponseText)) {
                     if (interestedProp.videos && interestedProp.videos.length > 0) {
                         mediaToSend = { url: interestedProp.videos[0], type: 'video', caption: `🎥 Vídeo: ${interestedProp.name}` };
+                    } else {
+                         const imgFallback = (interestedProp.images && interestedProp.images.length > 0) ? interestedProp.images[0] : interestedProp.imageUrl;
+                         mediaToSend = { url: imgFallback, type: 'image', caption: `🎥 Vídeo indisponível. Veja esta foto do ${interestedProp.name}.` };
                     }
-                    finalText = rawResponseText.replace('[SEND_VIDEO]', '').trim();
+                    finalText = rawResponseText.replace(videoRegex, '').trim();
                 }
-                // --- LÓGICA DE PLANTA COM FALLBACK ---
-                else if (rawResponseText.includes('[SEND_PLAN]')) {
-                    // 1. Tenta achar planta geral
-                    if (interestedProp.floorPlans && interestedProp.floorPlans.length > 0) {
-                        mediaToSend = { url: interestedProp.floorPlans[0], type: 'image', caption: `📐 Planta Baixa: ${interestedProp.name}` };
-                    } 
-                    // 2. Tenta achar planta de unidade específica
-                    else if (interestedProp.units && interestedProp.units.some(u => u.image)) {
-                        const unitWithPlan = interestedProp.units.find(u => u.image);
-                        if (unitWithPlan) {
-                             mediaToSend = { url: unitWithPlan.image!, type: 'image', caption: `📐 Planta: ${unitWithPlan.name}` };
+                // --- LÓGICA DE PLANTA INTELIGENTE (Detecta Unidade Específica) ---
+                else if (planRegex.test(rawResponseText)) {
+                    let bestPlanUrl: string | null = null;
+                    let bestCaption = `📐 Planta Baixa: ${interestedProp.name}`;
+                    
+                    // Concatena texto do usuário e resposta da IA para buscar pistas da unidade (ex: "3 quartos", "final 1")
+                    const searchContext = (contextText + " " + rawResponseText).toLowerCase();
+
+                    // 1. Prioridade: Tenta achar planta de unidade específica mencionada
+                    if (interestedProp.units && interestedProp.units.length > 0) {
+                        // Busca uma unidade cujas keywords apareçam no texto
+                        const matchedUnit = interestedProp.units.find(u => {
+                            if (!u.image) return false;
+                            const keywords = [
+                                u.name.toLowerCase(), 
+                                `${u.bedrooms} quartos`, 
+                                `${u.bedrooms} dorms`,
+                                `${u.bedrooms} dormitórios`
+                            ];
+                            return keywords.some(k => searchContext.includes(k));
+                        });
+
+                        if (matchedUnit) {
+                            bestPlanUrl = matchedUnit.image!;
+                            bestCaption = `📐 Planta: ${matchedUnit.name} (${matchedUnit.size})`;
                         }
                     }
-                    // 3. FALLBACK: Se não tem planta, manda a foto principal com aviso
-                    else {
-                        const fallbackUrl = (interestedProp.images && interestedProp.images.length > 0) ? interestedProp.images[0] : interestedProp.imageUrl;
-                        if (fallbackUrl) {
-                            mediaToSend = { url: fallbackUrl, type: 'image', caption: `⚠️ Planta indisponível. Segue uma imagem ilustrativa do ${interestedProp.name}.` };
+
+                    // 2. Se não achou específica, tenta a planta geral do prédio
+                    if (!bestPlanUrl && interestedProp.floorPlans && interestedProp.floorPlans.length > 0) {
+                        bestPlanUrl = interestedProp.floorPlans[0];
+                    }
+
+                    // 3. Se não tem geral, pega a primeira unidade que tiver imagem
+                    if (!bestPlanUrl && interestedProp.units && interestedProp.units.some(u => u.image)) {
+                        const anyUnit = interestedProp.units.find(u => u.image);
+                        if (anyUnit) {
+                            bestPlanUrl = anyUnit.image!;
+                            bestCaption = `📐 Planta: ${anyUnit.name}`;
                         }
                     }
-                    finalText = rawResponseText.replace('[SEND_PLAN]', '').trim();
+
+                    // 4. FALLBACK FINAL: Foto principal com aviso
+                    if (!bestPlanUrl) {
+                        bestPlanUrl = (interestedProp.images && interestedProp.images.length > 0) ? interestedProp.images[0] : interestedProp.imageUrl;
+                        bestCaption = `⚠️ Planta indisponível. Veja uma foto ilustrativa do ${interestedProp.name}.`;
+                    }
+                    
+                    mediaToSend = { url: bestPlanUrl, type: 'image', caption: bestCaption };
+                    finalText = rawResponseText.replace(planRegex, '').trim();
                 }
              }
 

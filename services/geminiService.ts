@@ -1,4 +1,5 @@
 
+
 import { GoogleGenAI, Modality } from "@google/genai";
 import { Property, Lead, Message, LeadStatus, FollowUpConfig } from "../types";
 
@@ -168,6 +169,40 @@ export const generateAudioFromText = async (text: string, voiceName: string): Pr
   }
 };
 
+export const refineSystemPrompt = async (currentPrompt: string, userRequest: string): Promise<string> => {
+    const client = getAIClient();
+    if (!client) return "Erro: API Key não configurada.";
+
+    const metaPrompt = `
+        VOCÊ É UM ENGENHEIRO DE PROMPT SÊNIOR ESPECIALIZADO EM CRMs IMOBILIÁRIOS.
+        
+        SUA TAREFA:
+        Reescrever o "Prompt do Sistema" atual baseando-se no pedido do usuário.
+        Mantenha as partes técnicas essenciais (tags [SEND_PHOTO], variáveis {nome}, etc) intactas.
+        Apenas altere o tom, o estilo ou as regras de comportamento conforme solicitado.
+
+        PROMPT ATUAL:
+        "${currentPrompt}"
+
+        PEDIDO DO USUÁRIO:
+        "${userRequest}"
+
+        SAÍDA ESPERADA:
+        Apenas o novo texto do prompt completo, pronto para ser usado. Não adicione explicações ou conversas.
+    `;
+
+    try {
+        const response = await client.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: metaPrompt
+        });
+        return response.text || currentPrompt;
+    } catch (error) {
+        console.error("Error refining prompt:", error);
+        return currentPrompt;
+    }
+};
+
 export const generateAIResponse = async (
   lead: Lead,
   properties: Property[],
@@ -188,8 +223,8 @@ export const generateAIResponse = async (
       
       let unitDetails = "";
       if (p.units && p.units.length > 0) {
-          unitDetails = "\n  TIPOLOGIAS/PLANTAS DISPONÍVEIS NESTE PRÉDIO:\n" + p.units.map(u => 
-              `  - ${u.name}: R$ ${u.price} (${u.bedrooms} quartos, ${u.size}). Descrição: ${u.description || ''} ${u.image ? '[PLANTA DISPONÍVEL]' : '[SEM PLANTA]'}`
+          unitDetails = "\n  TIPOLOGIAS/PLANTAS DISPONÍVEIS NESTE PRÉDIO (Use estes nomes exatos):\n" + p.units.map(u => 
+              `  - Nome: "${u.name}" | Preço: R$ ${u.price} | Quartos: ${u.bedrooms} | Área: ${u.size} | Descrição: ${u.description || ''} ${u.image ? '[PLANTA DISPONÍVEL]' : '[SEM PLANTA]'}`
           ).join('\n');
       }
 
@@ -197,7 +232,7 @@ export const generateAIResponse = async (
 Nome: ${p.name}
 Tipo: ${p.type}
 Endereço: ${p.address}
-Preço (A partir de): R$${p.price}
+Preço Base: R$${p.price}
 Status: ${p.status}
 Specs Gerais: ${p.specs}
 Descrição: ${p.description}
@@ -222,11 +257,12 @@ MÍDIA GERAL DISPONÍVEL: [Fotos: ${hasPhotos}, Vídeo: ${hasVideo}, Planta/Layo
     Nome do Cliente: ${lead.name} (USE ESTE NOME NA CONVERSA PARA HUMANIZAR)
     Interesse (ID): ${lead.interestedInId || 'Geral'}
 
-    --- REGRAS DE TIPOLOGIAS ---
-    Se o imóvel for um PRÉDIO com múltiplas plantas/tipologias:
-    1. Não dê apenas o preço "a partir de". Explique as opções (ex: "Temos o final 1 de 3 dorms por X e o final 2 de 2 dorms por Y").
-    2. Se o cliente perguntar de "3 quartos", ignore a planta de 2 quartos e foque na de 3.
-    3. Seja consultivo: pergunte quantas pessoas vão morar para sugerir a melhor planta.
+    --- REGRAS CRÍTICAS SOBRE IMÓVEIS ---
+    1. Se o cliente falar de um imóvel específico pelo nome (ex: "Casa Alto Garças", "Tequici"), FOQUE NESSE IMÓVEL, mesmo que o registro do cliente diga outro interesse.
+    2. Se o imóvel for um PRÉDIO com múltiplas plantas/tipologias:
+       - NÃO mande a planta errada.
+       - Se o cliente pedir planta de "3 quartos" ou "Final 1", mencione explicitamente "planta de 3 quartos" ou "planta do Final 1" na sua resposta. Isso ajuda o sistema a buscar o arquivo correto.
+       - Se ele pedir planta genérica, pergunte qual tipologia ele prefere (se houver mais de uma).
 
     --- REGRAS OBRIGATÓRIAS PARA ENVIO DE MÍDIA ---
     Se o usuário solicitar ver fotos, vídeos ou planta baixa, você DEVE usar as tags abaixo.
@@ -240,10 +276,10 @@ MÍDIA GERAL DISPONÍVEL: [Fotos: ${hasPhotos}, Vídeo: ${hasVideo}, Planta/Layo
        - Responda algo como "Veja o vídeo..." e pule uma linha.
        - Adicione a tag "[SEND_VIDEO]".
     
-    3. Se pedir PLANTA/LAYOUT:
-       - Responda algo como "Segue a planta..." e pule uma linha.
+    3. Se pedir PLANTA/LAYOUT/DISTRIBUIÇÃO:
+       - Responda explicando a planta e pule uma linha.
        - Adicione a tag "[SEND_PLAN]".
-       - IMPORTANTE: Use essa tag se o cliente pedir planta, mesmo que você não tenha certeza se ela existe. O sistema enviará a melhor opção disponível (planta ou foto ilustrativa).
+       - IMPORTANTE: Sempre use [SEND_PLAN] se o cliente falar de planta. O sistema buscará a melhor imagem (da unidade específica ou geral).
     
     ------------------------------------
 

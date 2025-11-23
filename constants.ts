@@ -20,7 +20,7 @@ export const MOCK_PROPERTIES: Property[] = [
         'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&q=80&w=800'
     ],
     videos: [],
-    floorPlans: [],
+    floorPlans: ['https://images.unsplash.com/photo-1531835551805-16d864c8d311?auto=format&fit=crop&q=80&w=800'],
     units: [
         {
             id: 'u_teq_1',
@@ -87,7 +87,7 @@ export const MOCK_PROPERTIES: Property[] = [
         'https://images.unsplash.com/photo-1574362848149-11496d93a7c7?auto=format&fit=crop&q=80&w=800'
     ],
     videos: [],
-    floorPlans: [],
+    floorPlans: ['https://images.unsplash.com/photo-1531835551805-16d864c8d311?auto=format&fit=crop&q=80&w=800'],
     units: [
         {
             id: 'u_bot_1',
@@ -197,7 +197,8 @@ export const MOCK_PROPERTIES: Property[] = [
     specs: '146m²',
     images: ['https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=800'],
     videos: [],
-    floorPlans: ['https://images.unsplash.com/photo-1599809272520-279778c75850?auto=format&fit=crop&q=80&w=800']
+    // Adicionando uma imagem de planta explicita para teste
+    floorPlans: ['https://images.unsplash.com/photo-1531835551805-16d864c8d311?auto=format&fit=crop&q=80&w=800']
   }
 ];
 

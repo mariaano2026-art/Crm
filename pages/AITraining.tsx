@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useCRM, DEFAULT_SYSTEM_PROMPT } from '../context/CRMContext';
-import { Save, Brain, RefreshCcw, Bell, MessageCircle, Calendar, Zap, PauseCircle, Timer, Mic, Volume2, Play, Loader2 } from 'lucide-react';
+import { Save, Brain, RefreshCcw, Bell, MessageCircle, Calendar, Zap, PauseCircle, Timer, Mic, Volume2, Play, Loader2, Sparkles, Wand2, ArrowLeft, ArrowRight } from 'lucide-react';
 import { VOICE_PRESETS } from '../constants';
-import { generateAudioFromText } from '../services/geminiService';
+import { generateAudioFromText, refineSystemPrompt } from '../services/geminiService';
 
 const AITraining: React.FC = () => {
   const { 
@@ -28,6 +28,11 @@ const AITraining: React.FC = () => {
   const [localFollowUp, setLocalFollowUp] = useState(followUpConfig);
   const [localTimers, setLocalTimers] = useState(timerSettings);
   const [localVoice, setLocalVoice] = useState(voiceSettings);
+
+  // AI Prompt Refiner State
+  const [refinementInput, setRefinementInput] = useState('');
+  const [isRefining, setIsRefining] = useState(false);
+  const [refinedPrompt, setRefinedPrompt] = useState('');
 
   // Voice Preview State
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
@@ -87,13 +92,33 @@ const AITraining: React.FC = () => {
   }
 
   const handleResetGeneral = () => {
-    setLocalInstruction(DEFAULT_SYSTEM_PROMPT); // Uses the updated imported prompt
+    setLocalInstruction(DEFAULT_SYSTEM_PROMPT); 
     setLocalAiPause(30);
   };
 
   const handleResetFollowUp = () => {
       resetFollowUpConfig();
       setTimeout(() => setLocalFollowUp(followUpConfig), 100); 
+  };
+
+  const handleRefinePrompt = async () => {
+      if(!refinementInput.trim()) return;
+      setIsRefining(true);
+      try {
+          const newPrompt = await refineSystemPrompt(localInstruction, refinementInput);
+          setRefinedPrompt(newPrompt);
+      } catch (e) {
+          alert("Erro ao otimizar prompt. Verifique sua API Key.");
+      } finally {
+          setIsRefining(false);
+      }
+  };
+
+  const handleApplyRefinement = () => {
+      setLocalInstruction(refinedPrompt);
+      setRefinedPrompt('');
+      setRefinementInput('');
+      alert("Prompt atualizado no editor! Lembre-se de clicar em SALVAR.");
   };
 
   const handleSelectAndPlayVoice = async (voice: typeof voiceSettings) => {
@@ -193,14 +218,19 @@ const AITraining: React.FC = () => {
 
       {/* CONTENT AREA */}
       {activeTab === 'general' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fadeIn">
-            <div className="lg:col-span-2">
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[600px]">
+        <div className="space-y-8 animate-fadeIn">
+            {/* GRID PRINCIPAL: EDITOR + AI HELPER */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                
+                {/* 1. EDITOR DE PROMPT (Lado Esquerdo/Topo) */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[650px]">
                     <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-                        <h3 className="font-semibold text-gray-700">Instruções do Sistema (Prompt Principal)</h3>
+                        <h3 className="font-semibold text-gray-700 flex items-center gap-2">
+                             <MessageCircle size={18} /> Instruções do Sistema
+                        </h3>
                         <button onClick={handleResetGeneral} className="text-xs text-gray-500 hover:text-emerald-600 flex items-center gap-1"><RefreshCcw size={12} /> Restaurar Padrão</button>
                     </div>
-                    <div className="flex-1 p-0">
+                    <div className="flex-1 p-0 relative">
                         <textarea 
                             className="w-full h-full p-6 resize-none focus:outline-none font-mono text-sm text-gray-800 bg-white leading-relaxed"
                             value={localInstruction}
@@ -214,8 +244,82 @@ const AITraining: React.FC = () => {
                         </button>
                     </div>
                 </div>
+
+                {/* 2. OTIMIZADOR DE PROMPT COM IA (Lado Direito/Baixo) */}
+                <div className="flex flex-col h-[650px] bg-gradient-to-b from-indigo-50 to-white rounded-xl shadow-lg border border-indigo-100 overflow-hidden">
+                    <div className="bg-indigo-600 p-5 text-white flex justify-between items-center">
+                         <div>
+                             <h3 className="font-bold flex items-center gap-2 text-lg">
+                                 <Sparkles size={20} className="text-yellow-300" /> Otimizador com IA
+                             </h3>
+                             <p className="text-indigo-200 text-xs mt-1">Dê uma ideia e a IA reescreve o prompt técnico para você.</p>
+                         </div>
+                         <Wand2 size={24} className="text-indigo-300 opacity-50" />
+                    </div>
+
+                    <div className="flex-1 p-6 overflow-y-auto custom-scrollbar flex flex-col gap-4">
+                        {!refinedPrompt ? (
+                             <div className="flex-1 flex flex-col items-center justify-center text-center p-8 opacity-50 border-2 border-dashed border-indigo-200 rounded-xl">
+                                 <Brain size={48} className="text-indigo-300 mb-4" />
+                                 <h4 className="font-bold text-indigo-900 mb-2">Como posso melhorar seu corretor?</h4>
+                                 <p className="text-sm text-indigo-700">Exemplos:</p>
+                                 <ul className="text-xs text-indigo-500 mt-2 space-y-1">
+                                     <li>"Deixe ele mais agressivo para fechar vendas"</li>
+                                     <li>"Use gírias do Rio de Janeiro"</li>
+                                     <li>"Faça ele ser extremamente formal e culto"</li>
+                                 </ul>
+                             </div>
+                        ) : (
+                             <div className="flex-1 flex flex-col animate-fadeIn">
+                                 <div className="flex items-center gap-2 mb-2 text-indigo-900 font-bold text-sm">
+                                     <Sparkles size={14} /> Sugestão da IA:
+                                 </div>
+                                 <div className="bg-white border border-indigo-100 rounded-xl p-4 shadow-sm text-sm font-mono text-gray-700 overflow-y-auto flex-1 mb-4 leading-relaxed whitespace-pre-wrap">
+                                     {refinedPrompt}
+                                 </div>
+                                 <div className="flex gap-2">
+                                     <button 
+                                         onClick={() => setRefinedPrompt('')}
+                                         className="flex-1 py-3 border border-gray-300 text-gray-600 rounded-lg text-sm font-bold hover:bg-gray-50 transition"
+                                     >
+                                         <ArrowLeft size={16} className="inline mr-1" /> Voltar
+                                     </button>
+                                     <button 
+                                         onClick={handleApplyRefinement}
+                                         className="flex-1 py-3 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 shadow-md transition flex items-center justify-center gap-2"
+                                     >
+                                         Aplicar este Prompt <ArrowRight size={16} />
+                                     </button>
+                                 </div>
+                             </div>
+                        )}
+                    </div>
+
+                    <div className="p-4 bg-white border-t border-indigo-100">
+                         <div className="relative">
+                             <input 
+                                 type="text" 
+                                 value={refinementInput}
+                                 onChange={(e) => setRefinementInput(e.target.value)}
+                                 onKeyDown={(e) => e.key === 'Enter' && handleRefinePrompt()}
+                                 placeholder="Ex: Deixe o tom mais amigável e use emojis..."
+                                 className="w-full pl-4 pr-12 py-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-sm outline-none"
+                                 disabled={isRefining || !!refinedPrompt}
+                             />
+                             <button 
+                                 onClick={handleRefinePrompt}
+                                 disabled={isRefining || !refinementInput.trim() || !!refinedPrompt}
+                                 className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                             >
+                                 {isRefining ? <Loader2 size={18} className="animate-spin" /> : <Wand2 size={18} />}
+                             </button>
+                         </div>
+                    </div>
+                </div>
             </div>
-            <div className="space-y-6">
+
+            {/* SEÇÃO INFERIOR: CONFIGS ADICIONAIS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-200">
                 <div className="bg-white p-6 rounded-xl border border-purple-100 shadow-sm">
                     <h4 className="font-bold text-gray-800 mb-4 flex items-center gap-2 text-sm uppercase tracking-wide"><PauseCircle size={16} className="text-purple-500" /> Intervenção Humana</h4>
                     <p className="text-xs text-gray-500 mb-4">Pausa automática da IA após você responder manualmente.</p>

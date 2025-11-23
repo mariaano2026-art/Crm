@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useCRM } from '../context/CRMContext';
 import { generateAIResponse, transcribeAudio } from '../services/geminiService';
@@ -175,10 +176,7 @@ const Sandbox: React.FC = () => {
   }, []);
 
   const startSimulation = () => {
-      // If no property selected, default to the FIRST one (or the last added if we wanted, but let's be predictable)
-      if (!mockLead.interestedInId && properties.length > 0) {
-          setMockLead(prev => ({ ...prev, interestedInId: properties[0].id }));
-      }
+      // Don't force a default property yet, let detection logic handle it if user talks about one
       setCurrentStep('chat');
       setHistory([{
           id: 'intro',
@@ -215,12 +213,14 @@ const Sandbox: React.FC = () => {
     try {
         // 1. If audio, transcribe first
         let processedHistory = [...newHistory];
+        let contextText = text;
         
         if (isAudio && audioUrl) {
              const transcription = await transcribeAudio(audioUrl);
              
              if (transcription) {
                  newMessage.transcription = transcription;
+                 contextText = transcription;
                  processedHistory = newHistory.map(m => m.id === newMessage.id ? newMessage : m);
                  setHistory(processedHistory);
              }
@@ -230,7 +230,6 @@ const Sandbox: React.FC = () => {
         const rawResponseText = await generateAIResponse(mockLead, properties, processedHistory, systemInstruction);
 
         // --- ROBUST MEDIA TAG DETECTION (Sandbox Version) ---
-        // Regex to catch tags like [SEND_PHOTO], [SEND PHOTO], [SEND-PHOTO], case insensitive
         const photoRegex = /\[SEND[-_\s]?PHOTO\]/i;
         const videoRegex = /\[SEND[-_\s]?VIDEO\]/i;
         const planRegex = /\[SEND[-_\s]?PLAN\]/i;
@@ -238,8 +237,24 @@ const Sandbox: React.FC = () => {
         let finalText = rawResponseText;
         let mediaMessage: Message | null = null;
 
-        // Determine which property to show media for
-        const interestedProp = properties.find(p => p.id === mockLead.interestedInId) || properties[0];
+        // Determine property
+        let interestedProp = properties.find(p => p.id === mockLead.interestedInId);
+        
+        // Context Detection (Fix for "Wrong Property")
+        if (!interestedProp) {
+             const combinedText = (contextText + " " + rawResponseText).toLowerCase();
+             interestedProp = properties.find(p => combinedText.includes(p.name.toLowerCase()));
+             
+             // Fallback default
+             if (!interestedProp && properties.length > 0) {
+                 interestedProp = properties[0];
+             }
+             
+             // If detected, update mock lead for next turns
+             if (interestedProp && interestedProp.id !== mockLead.interestedInId) {
+                 setMockLead(prev => ({...prev, interestedInId: interestedProp!.id}));
+             }
+        }
 
         if (interestedProp) {
             // PHOTO LOGIC
@@ -283,38 +298,60 @@ const Sandbox: React.FC = () => {
                 };
                 finalText = rawResponseText.replace(videoRegex, '').trim();
             }
-            // PLAN LOGIC
+            // PLAN LOGIC (Enhanced for Units)
             else if (planRegex.test(rawResponseText)) {
-                let planUrl: string | null = null;
-                let caption = `📐 Planta Baixa: ${interestedProp.name}`;
+                let bestPlanUrl: string | null = null;
+                let bestCaption = `📐 Planta Baixa: ${interestedProp.name}`;
+                
+                const searchContext = (contextText + " " + rawResponseText).toLowerCase();
 
-                // 1. Check General Floor Plans
-                if (interestedProp.floorPlans && interestedProp.floorPlans.length > 0) {
-                    planUrl = interestedProp.floorPlans[0];
-                } 
-                // 2. Check Units
-                else if (interestedProp.units && interestedProp.units.some(u => u.image)) {
-                    const unitWithPlan = interestedProp.units.find(u => u.image);
-                    if (unitWithPlan) {
-                        planUrl = unitWithPlan.image!;
-                        caption = `📐 Planta: ${unitWithPlan.name}`;
+                // 1. Specific Unit Match
+                if (interestedProp.units && interestedProp.units.length > 0) {
+                    const matchedUnit = interestedProp.units.find(u => {
+                        if (!u.image) return false;
+                        const keywords = [
+                            u.name.toLowerCase(), 
+                            `${u.bedrooms} quartos`, 
+                            `${u.bedrooms} dorms`,
+                            `${u.bedrooms} dormitórios`
+                        ];
+                        return keywords.some(k => searchContext.includes(k));
+                    });
+
+                    if (matchedUnit) {
+                        bestPlanUrl = matchedUnit.image!;
+                        bestCaption = `📐 Planta: ${matchedUnit.name} (${matchedUnit.size})`;
                     }
                 }
 
-                // 3. Fallback to Main Image if absolutely no plan exists (Better than sending nothing)
-                if (!planUrl) {
-                    planUrl = (interestedProp.images && interestedProp.images.length > 0) ? interestedProp.images[0] : interestedProp.imageUrl;
-                    caption = `⚠️ Planta indisponível. Segue uma imagem ilustrativa do ${interestedProp.name}.`;
+                // 2. Generic Plan
+                if (!bestPlanUrl && interestedProp.floorPlans && interestedProp.floorPlans.length > 0) {
+                    bestPlanUrl = interestedProp.floorPlans[0];
+                } 
+                
+                // 3. Any Unit Plan
+                if (!bestPlanUrl && interestedProp.units && interestedProp.units.some(u => u.image)) {
+                    const anyUnit = interestedProp.units.find(u => u.image);
+                    if (anyUnit) {
+                        bestPlanUrl = anyUnit.image!;
+                        bestCaption = `📐 Planta: ${anyUnit.name}`;
+                    }
                 }
 
-                if (planUrl) {
+                // 4. Fallback to Main Image
+                if (!bestPlanUrl) {
+                    bestPlanUrl = (interestedProp.images && interestedProp.images.length > 0) ? interestedProp.images[0] : interestedProp.imageUrl;
+                    bestCaption = `⚠️ Planta indisponível. Segue uma imagem ilustrativa do ${interestedProp.name}.`;
+                }
+
+                if (bestPlanUrl) {
                      mediaMessage = {
                         id: Date.now().toString() + 'media',
                         sender: 'agent',
-                        text: caption,
+                        text: bestCaption,
                         timestamp: new Date(),
                         isMedia: true,
-                        mediaUrl: planUrl!,
+                        mediaUrl: bestPlanUrl!,
                         mediaType: 'image'
                     };
                 }
@@ -422,7 +459,9 @@ const Sandbox: React.FC = () => {
       return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const activePropertyName = properties.find(p => p.id === mockLead.interestedInId)?.name || "Nenhum (Geral)";
+  // Safe check for property display
+  const detectedProperty = properties.find(p => p.id === mockLead.interestedInId);
+  const activePropertyName = detectedProperty ? detectedProperty.name : "Nenhum (Detecção Automática)";
 
   return (
     <div className="p-8 bg-gray-50 min-h-screen flex flex-col">
@@ -439,9 +478,11 @@ const Sandbox: React.FC = () => {
         
         {currentStep === 'chat' && (
             <div className="flex items-center gap-3">
-                <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-emerald-50 rounded-lg border border-emerald-100">
-                    <Building2 size={16} className="text-emerald-600" />
-                    <span className="text-xs text-emerald-800">Imóvel Ativo: <strong>{activePropertyName}</strong></span>
+                <div className={`hidden md:flex items-center gap-2 px-4 py-2 rounded-lg border ${detectedProperty ? 'bg-emerald-50 border-emerald-100' : 'bg-gray-100 border-gray-200'}`}>
+                    <Building2 size={16} className={detectedProperty ? "text-emerald-600" : "text-gray-400"} />
+                    <span className={`text-xs ${detectedProperty ? "text-emerald-800" : "text-gray-500"}`}>
+                        Imóvel Focado: <strong>{activePropertyName}</strong>
+                    </span>
                 </div>
                 <button 
                     onClick={resetSimulation}
@@ -476,12 +517,12 @@ const Sandbox: React.FC = () => {
                         onChange={(e) => setMockLead({...mockLead, interestedInId: e.target.value || undefined})}
                         value={mockLead.interestedInId || ''}
                       >
-                          <option value="">Não, interesse geral (Usa o primeiro da lista)</option>
+                          <option value="">Não sei / Deixar a IA detectar</option>
                           {properties.map(p => (
                               <option key={p.id} value={p.id}>{p.name} ({p.type})</option>
                           ))}
                       </select>
-                      <p className="text-xs text-gray-500 mt-1">Se você acabou de adicionar um imóvel, selecione-o aqui para testar suas fotos/plantas.</p>
+                      <p className="text-xs text-gray-500 mt-1">Se deixar em branco, a IA tentará adivinhar qual imóvel você quer pelo contexto da conversa.</p>
                   </div>
 
                   <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
@@ -489,8 +530,8 @@ const Sandbox: React.FC = () => {
                       <ul className="text-sm text-blue-700 space-y-1 list-disc pl-4">
                           <li>Personalidade definida nas configurações</li>
                           <li>Conhecimento sobre os imóveis cadastrados</li>
+                          <li><strong>Seleção Inteligente de Planta (Unidade Específica)</strong></li>
                           <li>Regras de envio de fotos/vídeos</li>
-                          <li>Capacidade de entendimento de áudio (Transcrição)</li>
                       </ul>
                   </div>
 
