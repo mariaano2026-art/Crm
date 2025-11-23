@@ -467,40 +467,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
              
              const rawResponseText = await generateAIResponse(freshLead, properties, historyForAI, systemInstruction);
              
-             // --- LÓGICA DE MODALIDADE DE RESPOSTA (ESPELHAMENTO) ---
-             // Se o usuário mandou áudio, a IA responde com áudio. Se texto, texto.
-             if (mediaType === 'audio') {
-                 setAiActivity('recording');
-                 const audioUrl = await generateAudioFromText(rawResponseText, voiceSettings.voiceName);
-                 
-                 if (audioUrl) {
-                     setLeads(prev => prev.map(l => {
-                         if (l.id === selectedLeadId) {
-                             return {
-                                 ...l,
-                                 messages: [...l.messages, {
-                                     id: Date.now().toString() + "audio",
-                                     sender: 'agent',
-                                     text: "Mensagem de Voz",
-                                     timestamp: new Date(),
-                                     isMedia: true,
-                                     mediaUrl: audioUrl,
-                                     mediaType: 'audio',
-                                     transcription: rawResponseText // Opcional: salvar o texto original como transcrição
-                                 }],
-                                 unreadCount: 0
-                             };
-                         }
-                         return l;
-                     }));
-                     setAiActivity('idle');
-                     return; // Encerra aqui, pois já enviou áudio
-                 }
-                 // Se falhar o áudio, cai no fluxo de texto abaixo como fallback
-             }
-
-             setAiActivity('idle');
-
+             // --- EXTRAÇÃO DE TAGS DE MÍDIA (Movido para antes da decisão de envio) ---
              let finalText = rawResponseText;
              let mediaToSend: { url: string, type: 'image' | 'video', caption: string } | null = null;
              const interestedProp = properties.find(p => p.id === freshLead.interestedInId) || properties[0];
@@ -532,6 +499,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 }
              }
 
+             // --- ENVIO DE MÍDIA SE EXISTIR ---
              if (mediaToSend) {
                  setLeads(prev => prev.map(l => {
                      if (l.id === selectedLeadId) {
@@ -554,34 +522,72 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                  await new Promise(r => setTimeout(r, 1000));
              }
 
-             const textChunks = finalText.split(/\n+/).filter(chunk => chunk.trim().length > 0);
-             let attentionNeeded = false;
-             for (const chunk of textChunks) {
-                setAiActivity('typing');
-                const typingDuration = Math.min(chunk.length * timerSettings.charDelay, timerSettings.maxDelay);
-                await new Promise(resolve => setTimeout(resolve, typingDuration));
-                setLeads(prev => prev.map(l => {
-                    if (l.id === selectedLeadId) {
-                        return {
-                            ...l,
-                            messages: [...l.messages, {
-                                id: Date.now().toString() + Math.random(),
-                                sender: 'agent',
-                                text: chunk.trim(),
-                                timestamp: new Date()
-                            }],
-                            unreadCount: 0
-                        };
-                    }
-                    return l;
-                }));
-                if (checkAttentionTriggers(chunk, 'ai')) attentionNeeded = true;
-                setAiActivity('idle');
-                await new Promise(resolve => setTimeout(resolve, 600)); 
+             // --- LÓGICA DE MODALIDADE DE RESPOSTA (ESPELHAMENTO) ---
+             // Se o usuário mandou áudio, a IA responde com áudio. Se texto, texto.
+             
+             let audioSent = false;
+
+             if (mediaType === 'audio') {
+                 setAiActivity('recording');
+                 // Remove asteriscos do markdown para o TTS falar melhor
+                 const textForTTS = finalText.replace(/\*/g, '');
+                 const audioUrl = await generateAudioFromText(textForTTS, voiceSettings.voiceName);
+                 
+                 if (audioUrl) {
+                     setLeads(prev => prev.map(l => {
+                         if (l.id === selectedLeadId) {
+                             return {
+                                 ...l,
+                                 messages: [...l.messages, {
+                                     id: Date.now().toString() + "audio",
+                                     sender: 'agent',
+                                     text: "Mensagem de Voz",
+                                     timestamp: new Date(),
+                                     isMedia: true,
+                                     mediaUrl: audioUrl,
+                                     mediaType: 'audio',
+                                     transcription: finalText // Salvar o texto original como transcrição para visualização
+                                 }],
+                                 unreadCount: 0
+                             };
+                         }
+                         return l;
+                     }));
+                     audioSent = true;
+                 }
+                 setAiActivity('idle');
              }
 
-             if (attentionNeeded) {
-                 setLeads(prev => prev.map(l => l.id === selectedLeadId ? { ...l, requiresAttention: true } : l));
+             // Se não foi enviado áudio (porque a entrada era texto OU falha na geração de áudio), envia texto
+             if (!audioSent) {
+                const textChunks = finalText.split(/\n+/).filter(chunk => chunk.trim().length > 0);
+                let attentionNeeded = false;
+                for (const chunk of textChunks) {
+                    setAiActivity('typing');
+                    const typingDuration = Math.min(chunk.length * timerSettings.charDelay, timerSettings.maxDelay);
+                    await new Promise(resolve => setTimeout(resolve, typingDuration));
+                    setLeads(prev => prev.map(l => {
+                        if (l.id === selectedLeadId) {
+                            return {
+                                ...l,
+                                messages: [...l.messages, {
+                                    id: Date.now().toString() + Math.random(),
+                                    sender: 'agent',
+                                    text: chunk.trim(),
+                                    timestamp: new Date()
+                                }],
+                                unreadCount: 0
+                            };
+                        }
+                        return l;
+                    }));
+                    if (checkAttentionTriggers(chunk, 'ai')) attentionNeeded = true;
+                    setAiActivity('idle');
+                    await new Promise(resolve => setTimeout(resolve, 600)); 
+                }
+                if (attentionNeeded) {
+                    setLeads(prev => prev.map(l => l.id === selectedLeadId ? { ...l, requiresAttention: true } : l));
+                }
              }
 
              const newTemp = await classifyLeadTemperature([...historyForAI, { id: 'temp', sender: 'agent', text: finalText, timestamp: new Date() }]);
