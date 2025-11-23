@@ -1,8 +1,7 @@
 
-
 import React from 'react';
 import { useCRM } from '../context/CRMContext';
-import { LayoutDashboard, Users, MessageSquare, Building2, Settings, LogOut, Brain, FlaskConical, Bell, Kanban, ShieldAlert, Database, X } from 'lucide-react';
+import { LayoutDashboard, Users, MessageSquare, Building2, Settings, LogOut, Brain, FlaskConical, Bell, Kanban, ShieldAlert, Database, X, Tag } from 'lucide-react';
 import { View } from '../types';
 
 interface SidebarProps {
@@ -69,13 +68,26 @@ const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
 
       <nav className="flex-1 p-4 overflow-y-auto custom-scrollbar">
         <NavItem view="dashboard" icon={LayoutDashboard} label="Dashboard" />
-        <NavItem view="pipeline" icon={Kanban} label="Pipeline de Vendas" />
-        <NavItem view="leads" icon={Users} label="Gestão de Leads" badge={leadsWithAttention > 0 ? leadsWithAttention : undefined} />
-        <NavItem view="chat" icon={MessageSquare} label="Atendimento IA" badge={leadsWithAttention > 0 ? leadsWithAttention : undefined} />
-        <NavItem view="properties" icon={Building2} label="Imóveis" />
-        <NavItem view="training" icon={Brain} label="Instruções IA" />
-        <NavItem view="blacklist" icon={ShieldAlert} label="Blacklist" />
-        <NavItem view="sandbox" icon={FlaskConical} label="Simulador IA" />
+        <div className="mb-2">
+            <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Vendas</p>
+            <NavItem view="pipeline" icon={Kanban} label="Pipeline (Status)" />
+            <NavItem view="tags-pipeline" icon={Tag} label="Pipeline (Etiquetas)" />
+            <NavItem view="leads" icon={Users} label="Gestão de Leads" badge={leadsWithAttention > 0 ? leadsWithAttention : undefined} />
+        </div>
+        
+        <div className="mb-2">
+             <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Operacional</p>
+            <NavItem view="chat" icon={MessageSquare} label="Atendimento IA" badge={leadsWithAttention > 0 ? leadsWithAttention : undefined} />
+            <NavItem view="properties" icon={Building2} label="Imóveis" />
+        </div>
+
+        <div className="mb-2">
+             <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Inteligência</p>
+            <NavItem view="training" icon={Brain} label="Instruções IA" />
+            <NavItem view="sandbox" icon={FlaskConical} label="Simulador IA" />
+            <NavItem view="blacklist" icon={ShieldAlert} label="Blacklist" />
+        </div>
+        
         <div className="my-2 border-t border-gray-100"></div>
         <NavItem view="data-management" icon={Database} label="Backup & Dados" />
         <NavItem view="settings" icon={Settings} label="Configurações" />

@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
@@ -10,6 +9,7 @@ import AITraining from './pages/AITraining';
 import Settings from './pages/Settings';
 import Sandbox from './pages/Sandbox';
 import Pipeline from './pages/Pipeline';
+import TagsPipeline from './pages/TagsPipeline';
 import Blacklist from './pages/Blacklist';
 import DataManagement from './pages/DataManagement';
 import { CRMProvider, useCRM } from './context/CRMContext';
@@ -24,6 +24,7 @@ const MainContent: React.FC = () => {
       case 'dashboard': return <Dashboard />;
       case 'leads': return <Leads />;
       case 'pipeline': return <Pipeline />;
+      case 'tags-pipeline': return <TagsPipeline />;
       case 'chat': return <Chat />;
       case 'properties': return <Properties />;
       case 'training': return <AITraining />;

@@ -109,4 +109,4 @@ export interface VoiceSettings {
   gender: 'male' | 'female';
 }
 
-export type View = 'dashboard' | 'leads' | 'pipeline' | 'chat' | 'properties' | 'settings' | 'training' | 'sandbox' | 'blacklist' | 'data-management';
+export type View = 'dashboard' | 'leads' | 'pipeline' | 'tags-pipeline' | 'chat' | 'properties' | 'settings' | 'training' | 'sandbox' | 'blacklist' | 'data-management';
