@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useCRM, DEFAULT_SYSTEM_PROMPT } from '../context/CRMContext';
 import { Save, Brain, RefreshCcw, Bell, MessageCircle, Calendar, Zap, PauseCircle, Timer, Mic, Volume2, Play, Loader2 } from 'lucide-react';
@@ -86,7 +87,7 @@ const AITraining: React.FC = () => {
   }
 
   const handleResetGeneral = () => {
-    setLocalInstruction(DEFAULT_SYSTEM_PROMPT);
+    setLocalInstruction(DEFAULT_SYSTEM_PROMPT); // Uses the updated imported prompt
     setLocalAiPause(30);
   };
 
