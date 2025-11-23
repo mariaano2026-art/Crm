@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useCRM } from '../context/CRMContext';
+import { useCRM, DEFAULT_SYSTEM_PROMPT } from '../context/CRMContext';
 import { Save, Brain, RefreshCcw, Bell, MessageCircle, Calendar, Zap, PauseCircle, Timer, Mic, Volume2, Play, Loader2 } from 'lucide-react';
 import { VOICE_PRESETS } from '../constants';
 import { generateAudioFromText } from '../services/geminiService';
@@ -86,16 +86,7 @@ const AITraining: React.FC = () => {
   }
 
   const handleResetGeneral = () => {
-    const defaultPrompt = `Você é uma IA de atendimento para uma construtora. Aja como um corretor humano experiente no WhatsApp.
-
-OBJETIVOS:
-1. Responder a última mensagem do cliente de forma natural e humanizada.
-2. Usar o contexto dos imóveis disponíveis para fornecer informações precisas (preço, tamanho, etc).
-3. Se o cliente perguntar sobre um imóvel específico, forneça detalhes e ofereça agendar uma visita.
-4. Seja breve (máximo 2 parágrafos curtos), ideal para WhatsApp.
-5. Se o cliente pedir fotos, diga que está enviando as imagens em seguida.
-6. Tente sempre terminar com uma pergunta para manter a conversa viva.`;
-    setLocalInstruction(defaultPrompt);
+    setLocalInstruction(DEFAULT_SYSTEM_PROMPT);
     setLocalAiPause(30);
   };
 

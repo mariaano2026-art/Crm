@@ -1,4 +1,5 @@
 
+
 import { Lead, LeadStatus, Message, Property, FollowUpConfig, MessageTimerSettings, VoiceSettings } from './types';
 
 export const MOCK_PROPERTIES: Property[] = [
@@ -166,18 +167,37 @@ export const MOCK_PROPERTIES: Property[] = [
   },
   {
     id: 'c_alta_garca',
-    name: 'Casa Alta Garça',
+    name: 'Casa Alto Garças',
     type: 'Casa',
     address: 'Rua Alto Garça',
     price: 1200000,
     status: 'Em Construção',
-    description: 'Projeto de alto padrão na Rua Alto Garça. Acabamento luxuoso.',
-    features: ['Piscina', 'Pé Direito Duplo', '4 Vagas', 'Automação'],
+    description: `Alto Garças - O Moderno ao seu alcance.
+
+📐 146m² de Área Construída
+🛏️ 3 Dormitórios (sendo 2 Suítes)
+🚗 2 Vagas de Garagem
+
+✨ Diferenciais Exclusivos:
+- Área Gourmet completa com Churrasqueira
+- Jacuzzi privativa para seus momentos de lazer
+- Jardim de Inverno trazendo luz e natureza
+- Acabamentos Premium em todo o imóvel
+- Sala de estar integrada à sala de jantar
+- Cozinha moderna e espaçosa
+
+🏗️ Status da Obra (Atualizado: Out/2025):
+- Terraplanagem, Fundação e Estrutura: 100%
+- Fachada: 70%
+- Acabamento e Paisagismo: 20%
+
+📍 Localização Privilegiada próxima a transporte público, comércio e serviços.`,
+    features: ['Jacuzzi', 'Área Gourmet', 'Jardim de Inverno', '2 Suítes', 'Acabamento Premium'],
     imageUrl: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=800',
-    specs: '4 Suítes',
+    specs: '146m²',
     images: ['https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=800'],
     videos: [],
-    floorPlans: []
+    floorPlans: ['https://images.unsplash.com/photo-1599809272520-279778c75850?auto=format&fit=crop&q=80&w=800']
   }
 ];
 

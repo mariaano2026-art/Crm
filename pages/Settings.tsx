@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useCRM } from '../context/CRMContext';
-import { MessageSquare, Key, Server, CheckCircle, AlertCircle, Copy, ExternalLink, Zap, QrCode, Wifi, Eye, EyeOff, Save, Trash2, RefreshCw, Brain, CloudLightning, FileJson } from 'lucide-react';
+import { MessageSquare, Key, Server, CheckCircle, AlertCircle, Copy, ExternalLink, Zap, QrCode, Wifi, Eye, EyeOff, Save, Trash2, RefreshCw, Brain, CloudLightning, FileJson, Info } from 'lucide-react';
 
 const Settings: React.FC = () => {
   const { whatsappStatus, setWhatsappStatus, updateApiKey, isAiReady, properties, systemInstruction, blacklist } = useCRM();
@@ -456,18 +456,35 @@ const Settings: React.FC = () => {
                         <Key size={18} />
                         Configuração da API Key
                     </h3>
+
+                    {/* NEW: Instructions Box with Link */}
+                    <div className="bg-white p-4 rounded-lg border border-indigo-200 mb-4 shadow-sm">
+                        <h4 className="text-xs font-bold text-indigo-800 uppercase mb-2 flex items-center gap-1">
+                            <Info size={12} /> Onde pegar a chave?
+                        </h4>
+                        <p className="text-xs text-indigo-700 mb-3 leading-relaxed">
+                            Você precisa de uma chave gratuita do Google Gemini para que a IA funcione.
+                        </p>
+                        <a 
+                            href="https://aistudio.google.com/app/apikey" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center gap-2 w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 rounded-lg transition-colors"
+                        >
+                            Gerar Chave API no Google AI Studio <ExternalLink size={12} />
+                        </a>
+                    </div>
                     
-                    <p className="text-sm text-indigo-800 mb-4 leading-relaxed">
-                        Insira sua chave Gemini aqui para usar o CRM no navegador. Para o modo 24h (Vercel), adicione também nas Variáveis de Ambiente.
+                    <p className="text-xs text-indigo-800 mb-2 font-medium">
+                        Cole a chave gerada no campo abaixo e clique em Salvar:
                     </p>
                     
                     <div className="space-y-3">
                          <div>
-                             <label className="block text-xs font-bold text-indigo-700 mb-1 uppercase">Google Gemini API Key</label>
                              <div className="relative">
                                  <input 
                                     type={showApiKey ? "text" : "password"}
-                                    className="w-full pr-10 pl-3 py-2 rounded border border-indigo-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                                    className="w-full pr-10 pl-3 py-2 rounded border border-indigo-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white"
                                     placeholder="AIzaSy..."
                                     value={apiKeyInput}
                                     onChange={(e) => setApiKeyInput(e.target.value)}
@@ -494,7 +511,7 @@ const Settings: React.FC = () => {
                                      className="px-3 py-2 border border-red-200 text-red-500 rounded hover:bg-red-50"
                                      title="Remover Chave"
                                  >
-                                     X
+                                     <Trash2 size={16} />
                                  </button>
                              )}
                          </div>

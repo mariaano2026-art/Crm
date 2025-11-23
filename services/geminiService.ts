@@ -211,7 +211,7 @@ MÍDIA GERAL DISPONÍVEL: [Fotos: ${hasPhotos}, Vídeo: ${hasVideo}, Planta/Layo
       const type = m.mediaType === 'audio' ? '[ÁUDIO]' : '';
       // If audio has transcription, use it for context!
       const content = m.transcription ? `[ÁUDIO TRANSCRITO: "${m.transcription}"]` : m.text;
-      return `${m.sender === 'user' ? 'Cliente' : 'Vendedor'}: ${type} ${content}`
+      return `${m.sender === 'user' ? 'Cliente' : 'Vendedor (IA)'}: ${type} ${content}`
   }).join('\n');
   
   // Construção da Instrução de Sistema (Persona + Regras + Dados RAG)
@@ -251,11 +251,22 @@ MÍDIA GERAL DISPONÍVEL: [Fotos: ${hasPhotos}, Vídeo: ${hasVideo}, Planta/Layo
     ${propertyContext}
   `;
 
+  // Enhanced User Prompt for Better Context Recall
   const userPrompt = `
-    --- HISTÓRICO DA CONVERSA ---
+    --- HISTÓRICO COMPLETO DA CONVERSA ---
     ${chatHistory}
-    
-    Sua resposta (simulando WhatsApp, use quebra de linha para separar mensagens):
+
+    --- CHECKLIST DE MEMÓRIA (Mentalize isso antes de responder) ---
+    1. O cliente já mencionou o nome dele anteriormente? Se sim, use-o para conectar.
+    2. O cliente já falou sobre tipologia (2 ou 3 quartos) ou orçamento? Se sim, não pergunte de novo, apenas confirme.
+    3. O cliente fez alguma pergunta específica anteriormente que ficou pendente? Responda ela primeiro.
+    4. Existe alguma objeção que ele já citou (ex: "está caro")? Trate isso com empatia.
+    5. O tom do cliente é direto ou mais conversador? Adapte-se.
+
+    --- SUA TAREFA ---
+    Responda a última mensagem do cliente mantendo o fluxo natural.
+    NÃO explique seu raciocínio. Apenas responda como o corretor no WhatsApp.
+    Use quebra de linha para separar balões de mensagem se necessário.
   `;
 
   try {
