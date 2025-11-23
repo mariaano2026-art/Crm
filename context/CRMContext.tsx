@@ -1,9 +1,8 @@
 
-
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Lead, Property, Message, View, LeadStatus, FollowUpConfig, MessageTimerSettings, VoiceSettings } from '../types';
 import { MOCK_LEADS, MOCK_PROPERTIES, DEFAULT_FOLLOWUP_CONFIG, DEFAULT_TIMER_SETTINGS, VOICE_PRESETS } from '../constants';
-import { generateAIResponse, generateFollowUp, classifyLeadTemperature, generateAudioFromText, isAIConfigured } from '../services/geminiService';
+import { generateAIResponse, generateFollowUp, classifyLeadTemperature, generateAudioFromText, isAIConfigured, transcribeAudio } from '../services/geminiService';
 
 const DEFAULT_SYSTEM_PROMPT = `Você é uma IA de atendimento para uma construtora. Aja como um corretor humano experiente no WhatsApp.
 
@@ -405,6 +404,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       mediaType
     };
 
+    // Atualiza estado com a nova mensagem
     setLeads(prevLeads => {
       return prevLeads.map(lead => {
         if (lead.id === selectedLeadId) {
@@ -434,13 +434,45 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
              const freshLead = leads.find(l => l.id === selectedLeadId); 
              if(!freshLead) return;
-             const history = [...freshLead.messages, newMessage];
-             const rawResponseText = await generateAIResponse(freshLead, properties, history, systemInstruction);
+
+             // --- LÓGICA DE TRANSCRIÇÃO E CONTEXTO DE ÁUDIO ---
+             let contextText = text;
              
-             let audioUrl: string | null = null;
+             // Se o usuário mandou áudio, transcrevemos para o contexto da IA
+             if (mediaType === 'audio' && mediaUrl) {
+                setAiActivity('typing'); // Mostra que a IA está "ouvindo"/processando
+                try {
+                    const transcription = await transcribeAudio(mediaUrl);
+                    if (transcription) {
+                        contextText = transcription;
+                        // Atualiza a mensagem original no estado com a transcrição
+                        setLeads(prev => prev.map(l => {
+                            if (l.id === selectedLeadId) {
+                                return {
+                                    ...l,
+                                    messages: l.messages.map(m => m.id === newMessage.id ? { ...m, transcription } : m)
+                                };
+                            }
+                            return l;
+                        }));
+                    }
+                } catch (e) {
+                    console.error("Erro na transcrição automática", e);
+                }
+                setAiActivity('idle');
+             }
+
+             // Monta o histórico incluindo a mensagem atual já com contexto de texto (seja transcrito ou original)
+             const historyForAI = [...freshLead.messages, { ...newMessage, transcription: mediaType === 'audio' ? contextText : undefined, text: contextText }];
+             
+             const rawResponseText = await generateAIResponse(freshLead, properties, historyForAI, systemInstruction);
+             
+             // --- LÓGICA DE MODALIDADE DE RESPOSTA (ESPELHAMENTO) ---
+             // Se o usuário mandou áudio, a IA responde com áudio. Se texto, texto.
              if (mediaType === 'audio') {
                  setAiActivity('recording');
-                 audioUrl = await generateAudioFromText(rawResponseText, voiceSettings.voiceName);
+                 const audioUrl = await generateAudioFromText(rawResponseText, voiceSettings.voiceName);
+                 
                  if (audioUrl) {
                      setLeads(prev => prev.map(l => {
                          if (l.id === selectedLeadId) {
@@ -452,8 +484,9 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                                      text: "Mensagem de Voz",
                                      timestamp: new Date(),
                                      isMedia: true,
-                                     mediaUrl: audioUrl!,
-                                     mediaType: 'audio'
+                                     mediaUrl: audioUrl,
+                                     mediaType: 'audio',
+                                     transcription: rawResponseText // Opcional: salvar o texto original como transcrição
                                  }],
                                  unreadCount: 0
                              };
@@ -461,8 +494,9 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                          return l;
                      }));
                      setAiActivity('idle');
-                     return; 
+                     return; // Encerra aqui, pois já enviou áudio
                  }
+                 // Se falhar o áudio, cai no fluxo de texto abaixo como fallback
              }
 
              setAiActivity('idle');
@@ -550,7 +584,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                  setLeads(prev => prev.map(l => l.id === selectedLeadId ? { ...l, requiresAttention: true } : l));
              }
 
-             const newTemp = await classifyLeadTemperature([...history, { id: 'temp', sender: 'agent', text: finalText, timestamp: new Date() }]);
+             const newTemp = await classifyLeadTemperature([...historyForAI, { id: 'temp', sender: 'agent', text: finalText, timestamp: new Date() }]);
              if (newTemp) setLeads(prev => prev.map(l => l.id === selectedLeadId ? { ...l, status: newTemp } : l));
         }
     }

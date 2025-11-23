@@ -394,7 +394,8 @@ const Settings: React.FC = () => {
                                                 </li>
                                                 <li className="flex items-start gap-3">
                                                     <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 mt-0.5">2</div>
-                                                    <p className="text-sm text-gray-600">Vá em <strong>Aparelhos Conectados</strong> > <strong>Conectar Aparelho</strong>.</p>
+                                                    {/* FIX: Escaped greater-than symbol to prevent TS1382 */}
+                                                    <p className="text-sm text-gray-600">Vá em <strong>Aparelhos Conectados</strong> &gt; <strong>Conectar Aparelho</strong>.</p>
                                                 </li>
                                                 <li className="flex items-start gap-3">
                                                     <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 mt-0.5">3</div>
