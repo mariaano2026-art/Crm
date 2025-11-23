@@ -8,6 +8,18 @@ export enum LeadStatus {
   NO_AI = 'IA Desligada'
 }
 
+export interface Tag {
+  id: string;
+  name: string;
+  color: string; // Hex code
+}
+
+export interface WhatsAppConfig {
+  accessToken: string;
+  phoneNumberId: string;
+  wabaId: string;
+}
+
 export interface PropertyUnit {
   id: string;
   name: string; // Ex: "Final 1 - 3 Dorms", "Garden", "Cobertura"
@@ -32,10 +44,20 @@ export interface Property {
   specs: string; // Resumo geral
   // Novos campos de mídia
   images: string[];
-  videos: string[];
+  videos: string[]; // Lista de arquivos (Base64/Blob)
   floorPlans: string[];
+  // Links externos (URLs de fallback)
+  floorPlanLink?: string; // URL para PDF ou site da planta
+  videoLink?: string; // URL para YouTube/Drive (Fallback se não houver video nativo)
+  externalLink?: string; // URL para site oficial ou tour virtual
   // Hierarquia de unidades
   units?: PropertyUnit[];
+}
+
+export interface QuickReply {
+  id: string;
+  label: string; // O que aparece no botão (ex: "Preço")
+  text: string;  // O que é enviado (ex: "O valor parte de R$...")
 }
 
 export interface Message {
@@ -60,6 +82,8 @@ export interface Lead {
   unreadCount: number;
   requiresAttention?: boolean;
   aiPausedUntil?: Date;
+  tags?: string[]; // IDs das etiquetas
+  archived?: boolean; // Se a conversa está arquivada
 }
 
 export interface FollowUpConfig {

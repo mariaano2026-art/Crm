@@ -1,5 +1,3 @@
-
-
 import { GoogleGenAI, Modality } from "@google/genai";
 import { Property, Lead, Message, LeadStatus, FollowUpConfig } from "../types";
 
@@ -178,17 +176,20 @@ export const refineSystemPrompt = async (currentPrompt: string, userRequest: str
         
         SUA TAREFA:
         Reescrever o "Prompt do Sistema" atual baseando-se no pedido do usuário.
-        Mantenha as partes técnicas essenciais (tags [SEND_PHOTO], variáveis {nome}, etc) intactas.
-        Apenas altere o tom, o estilo ou as regras de comportamento conforme solicitado.
-
+        
+        REGRAS RÍGIDAS:
+        1. MANTENHA as partes técnicas essenciais intactas. NÃO REMOVA estas tags: [SEND_PHOTO], [SEND_VIDEO], [SEND_PLAN], {nome}.
+        2. MANTENHA o endereço e dados do inventário (essas partes são injetadas dinamicamente, mas se houver placeholders, mantenha).
+        3. FOQUE em alterar o "TOM", a "PERSONALIDADE" e as "ESTRATÉGIAS DE VENDAS" conforme o pedido.
+        
         PROMPT ATUAL:
         "${currentPrompt}"
 
-        PEDIDO DO USUÁRIO:
+        PEDIDO DO USUÁRIO (O que mudar):
         "${userRequest}"
 
         SAÍDA ESPERADA:
-        Apenas o novo texto do prompt completo, pronto para ser usado. Não adicione explicações ou conversas.
+        Apenas o novo texto do prompt completo. Sem conversinha.
     `;
 
     try {
@@ -215,16 +216,23 @@ export const generateAIResponse = async (
   // Construct context about properties including detailed unit info
   const propertyContext = properties.map(p => {
       const hasPhotos = (p.images && p.images.length > 0) || p.imageUrl ? "SIM" : "NÃO";
-      const hasVideo = p.videos && p.videos.length > 0 ? "SIM" : "NÃO";
       
-      // Verificação robusta de planta: Checa se existe planta geral OU planta em alguma unidade específica
+      // Lógica aprimorada de disponibilidade de mídia
+      const hasVideoFile = p.videos && p.videos.length > 0;
+      const hasVideoLink = !!p.videoLink;
+      const videoStatus = hasVideoFile ? "ARQUIVO" : (hasVideoLink ? "LINK_VIDEO" : "NÃO");
+
       const hasUnitPlan = p.units && p.units.some(u => u.image);
-      const hasPlan = (p.floorPlans && p.floorPlans.length > 0) || hasUnitPlan ? "SIM" : "NÃO";
+      const hasFloorPlanFile = p.floorPlans && p.floorPlans.length > 0;
+      const hasFloorPlanLink = !!p.floorPlanLink;
+      const planStatus = (hasUnitPlan || hasFloorPlanFile) ? "ARQUIVO" : (hasFloorPlanLink ? "LINK_PLANTA" : "NÃO");
       
+      const hasExternalLink = p.externalLink ? "SIM" : "NÃO";
+
       let unitDetails = "";
       if (p.units && p.units.length > 0) {
           unitDetails = "\n  TIPOLOGIAS/PLANTAS DISPONÍVEIS NESTE PRÉDIO (Use estes nomes exatos):\n" + p.units.map(u => 
-              `  - Nome: "${u.name}" | Preço: R$ ${u.price} | Quartos: ${u.bedrooms} | Área: ${u.size} | Descrição: ${u.description || ''} ${u.image ? '[PLANTA DISPONÍVEL]' : '[SEM PLANTA]'}`
+              `  - Nome: "${u.name}" | Preço: R$ ${u.price} | Quartos: ${u.bedrooms} | Área: ${u.size} | Descrição: ${u.description || ''} ${u.image ? '[PLANTA: ARQUIVO]' : '[PLANTA: INDISPONÍVEL]'}`
           ).join('\n');
       }
 
@@ -237,7 +245,8 @@ Status: ${p.status}
 Specs Gerais: ${p.specs}
 Descrição: ${p.description}
 ${unitDetails}
-MÍDIA GERAL DISPONÍVEL: [Fotos: ${hasPhotos}, Vídeo: ${hasVideo}, Planta/Layout: ${hasPlan}]
+MÍDIA DISPONÍVEL: [Fotos: ${hasPhotos}] [Vídeo: ${videoStatus}] [Planta: ${planStatus}]
+LINKS DISPONÍVEIS: [Site/Tour: ${hasExternalLink}, Link Planta: ${hasFloorPlanLink ? "SIM" : "NÃO"}, Link Vídeo: ${hasVideoLink ? "SIM" : "NÃO"}]
 -----------------------------------`;
   }).join('\n');
 
@@ -257,31 +266,26 @@ MÍDIA GERAL DISPONÍVEL: [Fotos: ${hasPhotos}, Vídeo: ${hasVideo}, Planta/Layo
     Nome do Cliente: ${lead.name} (USE ESTE NOME NA CONVERSA PARA HUMANIZAR)
     Interesse (ID): ${lead.interestedInId || 'Geral'}
 
-    --- REGRAS CRÍTICAS SOBRE IMÓVEIS ---
-    1. Se o cliente falar de um imóvel específico pelo nome (ex: "Casa Alto Garças", "Tequici"), FOQUE NESSE IMÓVEL, mesmo que o registro do cliente diga outro interesse.
-    2. Se o imóvel for um PRÉDIO com múltiplas plantas/tipologias:
-       - NÃO mande a planta errada.
-       - Se o cliente pedir planta de "3 quartos" ou "Final 1", mencione explicitamente "planta de 3 quartos" ou "planta do Final 1" na sua resposta. Isso ajuda o sistema a buscar o arquivo correto.
-       - Se ele pedir planta genérica, pergunte qual tipologia ele prefere (se houver mais de uma).
+    --- REGRAS CRÍTICAS SOBRE IMÓVEIS E MÍDIA ---
+    
+    1. SOBRE VÍDEOS:
+       - Se o cliente pedir vídeo, verifique o campo "MÍDIA DISPONÍVEL [Vídeo: ...]".
+       - Se for "ARQUIVO" ou "LINK_VIDEO", responda "Vou te enviar o vídeo." e use a tag [SEND_VIDEO].
+       - Se for "NÃO", mas tiver "Site/Tour: SIM", diga "Não tenho o arquivo de vídeo aqui, mas você pode ver o tour no site." e use a tag [SEND_VIDEO] (o sistema enviará o link do site como fallback).
+       - Se não tiver nada, diga que não tem vídeo mas envie fotos ([SEND_PHOTO]).
 
-    --- REGRAS OBRIGATÓRIAS PARA ENVIO DE MÍDIA ---
-    Se o usuário solicitar ver fotos, vídeos ou planta baixa, você DEVE usar as tags abaixo.
-    O sistema identificará a tag e enviará o arquivo separadamente.
-    
-    1. Se pedir FOTOS/IMAGENS:
-       - Responda algo como "Aqui estão as fotos..." e pule uma linha.
-       - Adicione a tag "[SEND_PHOTO]".
-    
-    2. Se pedir VÍDEO/TOUR:
-       - Responda algo como "Veja o vídeo..." e pule uma linha.
-       - Adicione a tag "[SEND_VIDEO]".
-    
-    3. Se pedir PLANTA/LAYOUT/DISTRIBUIÇÃO:
-       - Responda explicando a planta e pule uma linha.
-       - Adicione a tag "[SEND_PLAN]".
-       - IMPORTANTE: Sempre use [SEND_PLAN] se o cliente falar de planta. O sistema buscará a melhor imagem (da unidade específica ou geral).
-    
-    ------------------------------------
+    2. SOBRE PLANTAS (IMPORTANTE):
+       - Se o cliente pedir planta de uma unidade específica (ex: "planta de 3 quartos"), mencione isso na resposta.
+       - Use a tag [SEND_PLAN]. O sistema priorizará a imagem da planta. Se não tiver imagem, mas tiver "Link Planta: SIM", o sistema enviará o link.
+       - NÃO envie link se tiver o arquivo da planta disponível (priorize o arquivo).
+
+    3. SOBRE FOTOS:
+       - Use a tag [SEND_PHOTO].
+
+    --- TAGS DE COMANDO (USE EM LINHA SEPARADA) ---
+    [SEND_PHOTO] -> Para enviar fotos da galeria ou link do site.
+    [SEND_VIDEO] -> Para enviar vídeo (arquivo MP4), link de vídeo (YouTube) ou link do tour.
+    [SEND_PLAN]  -> Para enviar a imagem da planta ou o link do PDF/Site da planta.
 
     --- LISTA DE IMÓVEIS ATUALIZADA (INVENTÁRIO) ---
     ${propertyContext}
@@ -295,8 +299,7 @@ MÍDIA GERAL DISPONÍVEL: [Fotos: ${hasPhotos}, Vídeo: ${hasVideo}, Planta/Layo
     --- SUA TAREFA ---
     Responda a última mensagem do cliente mantendo o fluxo natural.
     NÃO explique seu raciocínio. Apenas responda como o corretor no WhatsApp.
-    Use quebra de linha para separar balões de mensagem se necessário.
-    Se o cliente pediu PLANTA ou FOTO, não esqueça de usar a tag [SEND_PLAN] ou [SEND_PHOTO].
+    Se precisar enviar mídia, use a tag correta no final.
   `;
 
   try {

@@ -1,9 +1,7 @@
-
-
 import React, { useState, useRef } from 'react';
 import { useCRM } from '../context/CRMContext';
 import { Property, PropertyUnit } from '../types';
-import { Edit2, MapPin, Home, Save, Plus, Image as ImageIcon, Film, Layout, Trash2, Upload, Grid, BedDouble, Bath, Loader2, ArrowRight, ImageOff } from 'lucide-react';
+import { Edit2, MapPin, Home, Save, Plus, Image as ImageIcon, Film, Layout, Trash2, Upload, Grid, BedDouble, Bath, Loader2, ArrowRight, ImageOff, Link as LinkIcon, ExternalLink, PlayCircle } from 'lucide-react';
 
 const Properties: React.FC = () => {
   const { properties, updateProperty, addProperty } = useCRM();
@@ -13,8 +11,13 @@ const Properties: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'info' | 'media' | 'units'>('info');
   const [isLoadingFile, setIsLoadingFile] = useState(false);
 
+  // URL Input States
+  const [urlInput, setUrlInput] = useState('');
+  const [urlType, setUrlType] = useState<'image' | 'plan' | 'video' | null>(null);
+
   const imageInputRef = useRef<HTMLInputElement>(null);
   const planInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const unitImageInputRef = useRef<HTMLInputElement>(null);
 
   const [newUnit, setNewUnit] = useState<Partial<PropertyUnit>>({ bedrooms: 2, bathrooms: 1 });
@@ -115,6 +118,16 @@ const Properties: React.FC = () => {
     });
   };
 
+  // Generic file to Base64 (for small videos)
+  const fileToBase64 = (file: File): Promise<string> => {
+      return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = error => reject(error);
+      });
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video' | 'plan' | 'unit') => {
       const file = e.target.files?.[0];
       if (!file) return;
@@ -125,10 +138,12 @@ const Properties: React.FC = () => {
           let base64String = "";
           
           if (type === 'video' || file.type.includes('video')) {
-              alert("⚠️ Vídeos ocupam muito espaço e não podem ser salvos nesta versão demo.");
-              setIsLoadingFile(false);
-              e.target.value = ''; 
-              return;
+              // Warning for large videos
+              if (file.size > 5 * 1024 * 1024) { // 5MB limit check
+                  alert("⚠️ Arquivo muito grande! Para vídeos, recomendamos usar links (URL) ou arquivos menores que 5MB para evitar travar o navegador.");
+              }
+              base64String = await fileToBase64(file);
+              setEditForm(prev => ({ ...prev, videos: [...(prev.videos || []), base64String] }));
           } else {
               base64String = await resizeImage(file);
           }
@@ -152,6 +167,24 @@ const Properties: React.FC = () => {
       }
   };
 
+  const handleUrlAdd = () => {
+      if (!urlInput.trim()) return;
+      
+      if (urlType === 'image') {
+          setEditForm(prev => ({ ...prev, images: [...(prev.images || []), urlInput] }));
+          if (!editForm.imageUrl || editForm.imageUrl.includes('placeholder')) {
+              setEditForm(prev => ({ ...prev, imageUrl: urlInput }));
+          }
+      } else if (urlType === 'plan') {
+          setEditForm(prev => ({ ...prev, floorPlans: [...(prev.floorPlans || []), urlInput] }));
+      } else if (urlType === 'video') {
+           setEditForm(prev => ({ ...prev, videos: [...(prev.videos || []), urlInput] }));
+      }
+
+      setUrlInput('');
+      setUrlType(null);
+  };
+
   const removeMedia = (type: 'image' | 'video' | 'plan', index: number) => {
       if(type === 'image') {
           const newArr = [...(editForm.images || [])];
@@ -162,6 +195,11 @@ const Properties: React.FC = () => {
         const newArr = [...(editForm.floorPlans || [])];
         newArr.splice(index, 1);
         setEditForm({...editForm, floorPlans: newArr});
+      }
+      if(type === 'video') {
+        const newArr = [...(editForm.videos || [])];
+        newArr.splice(index, 1);
+        setEditForm({...editForm, videos: newArr});
       }
   };
 
@@ -238,6 +276,11 @@ const Properties: React.FC = () => {
                         </div>
                     </div>
                     <textarea className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none h-24 resize-none" value={editForm.description || ''} onChange={e => setEditForm({...editForm, description: e.target.value})} placeholder="Descrição comercial..." />
+                    
+                    <div>
+                        <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block flex items-center gap-1"><ExternalLink size={10} /> Link do Imóvel (Site/Tour)</label>
+                        <input className="w-full border border-gray-300 rounded-lg p-2 text-sm outline-none text-blue-600" value={editForm.externalLink || ''} onChange={e => setEditForm({...editForm, externalLink: e.target.value})} placeholder="https://..." />
+                    </div>
                 </div>
             )}
 
@@ -246,14 +289,34 @@ const Properties: React.FC = () => {
                     {isLoadingFile && (
                         <div className="absolute inset-0 bg-white/80 z-10 flex flex-col items-center justify-center rounded-lg backdrop-blur-sm">
                             <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mb-2" />
-                            <span className="text-xs font-bold text-emerald-700">Processando imagem...</span>
+                            <span className="text-xs font-bold text-emerald-700">Processando arquivo...</span>
                         </div>
                     )}
+                    
+                    {/* GALLERY SECTION */}
                     <div>
                         <h4 className="text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-2"><ImageIcon size={14}/> Galeria</h4>
-                        <button onClick={() => imageInputRef.current?.click()} className="w-full border-2 border-dashed border-gray-300 hover:border-emerald-500 bg-gray-50 hover:bg-emerald-50 text-gray-500 hover:text-emerald-600 rounded-lg p-3 flex items-center justify-center gap-2 transition-all mb-3 text-xs font-bold">
-                            <Upload size={16} /> Adicionar Fotos
-                        </button>
+                        <div className="flex gap-2 mb-3">
+                            <button onClick={() => imageInputRef.current?.click()} className="flex-1 border border-dashed border-gray-300 hover:border-emerald-500 bg-gray-50 hover:bg-emerald-50 text-gray-500 hover:text-emerald-600 rounded-lg p-2 flex items-center justify-center gap-2 transition-all text-xs font-bold">
+                                <Upload size={14} /> Upload
+                            </button>
+                            <button onClick={() => setUrlType(urlType === 'image' ? null : 'image')} className={`flex-1 border border-gray-300 rounded-lg p-2 flex items-center justify-center gap-2 transition-all text-xs font-bold ${urlType === 'image' ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : 'bg-white hover:bg-gray-50'}`}>
+                                <LinkIcon size={14} /> URL
+                            </button>
+                        </div>
+                        
+                        {urlType === 'image' && (
+                            <div className="flex gap-2 mb-3 animate-fadeIn">
+                                <input 
+                                    className="flex-1 border border-emerald-300 rounded-lg p-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500" 
+                                    placeholder="Cole o link da imagem aqui..."
+                                    value={urlInput}
+                                    onChange={e => setUrlInput(e.target.value)}
+                                />
+                                <button onClick={handleUrlAdd} className="bg-emerald-600 text-white px-3 py-1 rounded-lg text-xs font-bold">Add</button>
+                            </div>
+                        )}
+
                         <input type="file" ref={imageInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, 'image')} />
                         <div className="grid grid-cols-3 gap-2">
                             {editForm.images?.map((img, idx) => (
@@ -264,11 +327,86 @@ const Properties: React.FC = () => {
                             ))}
                         </div>
                     </div>
+
+                    {/* VIDEOS SECTION */}
+                    <div>
+                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-2"><Film size={14}/> Vídeos</h4>
+                        
+                        {/* FALLBACK VIDEO LINK */}
+                        <div className="mb-2">
+                             <input 
+                                className="w-full border border-gray-300 rounded-lg p-2 text-xs outline-none text-purple-600 bg-purple-50/30" 
+                                value={editForm.videoLink || ''} 
+                                onChange={e => setEditForm({...editForm, videoLink: e.target.value})} 
+                                placeholder="Link externo do vídeo (YouTube/Drive) - Fallback" 
+                             />
+                        </div>
+
+                        <div className="flex gap-2 mb-3">
+                            <button onClick={() => videoInputRef.current?.click()} className="flex-1 border border-dashed border-gray-300 hover:border-purple-500 bg-gray-50 hover:bg-purple-50 text-gray-500 hover:text-purple-600 rounded-lg p-2 flex items-center justify-center gap-2 transition-all text-xs font-bold">
+                                <Upload size={14} /> Upload
+                            </button>
+                            <button onClick={() => setUrlType(urlType === 'video' ? null : 'video')} className={`flex-1 border border-gray-300 rounded-lg p-2 flex items-center justify-center gap-2 transition-all text-xs font-bold ${urlType === 'video' ? 'bg-purple-100 border-purple-500 text-purple-700' : 'bg-white hover:bg-gray-50'}`}>
+                                <LinkIcon size={14} /> URL
+                            </button>
+                        </div>
+
+                         {urlType === 'video' && (
+                            <div className="flex gap-2 mb-3 animate-fadeIn">
+                                <input 
+                                    className="flex-1 border border-purple-300 rounded-lg p-2 text-xs outline-none focus:ring-1 focus:ring-purple-500" 
+                                    placeholder="Cole o link direto do vídeo (MP4)..."
+                                    value={urlInput}
+                                    onChange={e => setUrlInput(e.target.value)}
+                                />
+                                <button onClick={handleUrlAdd} className="bg-purple-600 text-white px-3 py-1 rounded-lg text-xs font-bold">Add</button>
+                            </div>
+                        )}
+
+                        <input type="file" ref={videoInputRef} className="hidden" accept="video/*" onChange={(e) => handleFileUpload(e, 'video')} />
+                        <div className="grid grid-cols-1 gap-2">
+                            {editForm.videos?.map((vid, idx) => (
+                                <div key={idx} className="relative group bg-gray-100 rounded overflow-hidden border border-gray-200 flex items-center p-2">
+                                    <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0 text-purple-600">
+                                        <PlayCircle size={16} />
+                                    </div>
+                                    <span className="text-xs text-gray-600 ml-2 truncate flex-1">Vídeo {idx + 1}</span>
+                                    <button onClick={() => removeMedia('video', idx)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={14} /></button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* PLANS SECTION */}
                     <div>
                         <h4 className="text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-2"><Layout size={14}/> Plantas Gerais</h4>
-                        <button onClick={() => planInputRef.current?.click()} className="w-full border-2 border-dashed border-gray-300 hover:border-emerald-500 bg-gray-50 hover:bg-emerald-50 text-gray-500 hover:text-emerald-600 rounded-lg p-3 flex items-center justify-center gap-2 transition-all mb-3 text-xs font-bold">
-                            <Upload size={16} /> Adicionar Planta
-                        </button>
+                         
+                         {/* Optional External Link for Plan */}
+                        <div className="mb-2">
+                             <input className="w-full border border-gray-300 rounded-lg p-2 text-xs outline-none text-blue-600 bg-blue-50/30" value={editForm.floorPlanLink || ''} onChange={e => setEditForm({...editForm, floorPlanLink: e.target.value})} placeholder="Link externo da planta (opcional)" />
+                        </div>
+
+                        <div className="flex gap-2 mb-3">
+                            <button onClick={() => planInputRef.current?.click()} className="flex-1 border border-dashed border-gray-300 hover:border-emerald-500 bg-gray-50 hover:bg-emerald-50 text-gray-500 hover:text-emerald-600 rounded-lg p-2 flex items-center justify-center gap-2 transition-all text-xs font-bold">
+                                <Upload size={14} /> Upload
+                            </button>
+                            <button onClick={() => setUrlType(urlType === 'plan' ? null : 'plan')} className={`flex-1 border border-gray-300 rounded-lg p-2 flex items-center justify-center gap-2 transition-all text-xs font-bold ${urlType === 'plan' ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : 'bg-white hover:bg-gray-50'}`}>
+                                <LinkIcon size={14} /> URL
+                            </button>
+                        </div>
+                        
+                        {urlType === 'plan' && (
+                            <div className="flex gap-2 mb-3 animate-fadeIn">
+                                <input 
+                                    className="flex-1 border border-emerald-300 rounded-lg p-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500" 
+                                    placeholder="Cole o link da imagem da planta..."
+                                    value={urlInput}
+                                    onChange={e => setUrlInput(e.target.value)}
+                                />
+                                <button onClick={handleUrlAdd} className="bg-emerald-600 text-white px-3 py-1 rounded-lg text-xs font-bold">Add</button>
+                            </div>
+                        )}
+
                         <input type="file" ref={planInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, 'plan')} />
                          <div className="grid grid-cols-3 gap-2">
                             {editForm.floorPlans?.map((plan, idx) => (
@@ -377,8 +515,8 @@ const Properties: React.FC = () => {
                         </div>
                         <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black/60 to-transparent p-4">
                              <div className="flex gap-2">
-                                {property.videos?.length > 0 && <div className="bg-white/20 backdrop-blur text-white p-1 rounded" title="Vídeo"><Film size={12}/></div>}
-                                {property.floorPlans?.length > 0 && <div className="bg-white/20 backdrop-blur text-white p-1 rounded" title="Planta"><Layout size={12}/></div>}
+                                {(property.videos?.length > 0 || property.videoLink) && <div className="bg-white/20 backdrop-blur text-white p-1 rounded" title="Vídeo Disponível"><Film size={12}/></div>}
+                                {(property.floorPlans?.length > 0 || property.floorPlanLink) && <div className="bg-white/20 backdrop-blur text-white p-1 rounded" title="Planta Disponível"><Layout size={12}/></div>}
                             </div>
                         </div>
                     </div>
@@ -402,6 +540,7 @@ const Properties: React.FC = () => {
                         <div className="flex flex-wrap gap-1.5 mb-4 mt-auto">
                             <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-1 rounded-md border border-gray-200 font-medium">{property.type}</span>
                             <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-1 rounded-md border border-gray-200 font-medium truncate max-w-[150px]">{property.specs}</span>
+                            {property.externalLink && <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded-md border border-blue-100 font-medium flex items-center gap-1"><ExternalLink size={8}/> Site</span>}
                         </div>
 
                         <div className="pt-4 border-t border-gray-100 flex items-end justify-between">

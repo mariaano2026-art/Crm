@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useCRM, DEFAULT_SYSTEM_PROMPT } from '../context/CRMContext';
 import { Save, Brain, RefreshCcw, Bell, MessageCircle, Calendar, Zap, PauseCircle, Timer, Mic, Volume2, Play, Loader2, Sparkles, Wand2, ArrowLeft, ArrowRight } from 'lucide-react';

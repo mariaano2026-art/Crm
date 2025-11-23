@@ -1,6 +1,14 @@
 
+import { Lead, LeadStatus, Message, Property, FollowUpConfig, MessageTimerSettings, VoiceSettings, Tag } from './types';
 
-import { Lead, LeadStatus, Message, Property, FollowUpConfig, MessageTimerSettings, VoiceSettings } from './types';
+// Etiquetas padrão do WhatsApp Business
+export const DEFAULT_TAGS: Tag[] = [
+  { id: 't1', name: 'Novo cliente', color: '#3b82f6' }, // Azul
+  { id: 't2', name: 'Novo pedido', color: '#f59e0b' }, // Amarelo/Laranja
+  { id: 't3', name: 'Pagamento pendente', color: '#ef4444' }, // Vermelho
+  { id: 't4', name: 'Pago', color: '#10b981' }, // Verde
+  { id: 't5', name: 'Finalizado', color: '#6b7280' } // Cinza
+];
 
 export const MOCK_PROPERTIES: Property[] = [
   // --- PRÉDIO 1: TEQUICI ---
@@ -262,7 +270,8 @@ export const MOCK_LEADS: Lead[] = [
     interestedInId: 'p_tequici',
     messages: generateMockMessages(6),
     unreadCount: 1,
-    requiresAttention: false
+    requiresAttention: false,
+    tags: ['t1']
   },
   {
     id: 'l2',
@@ -273,7 +282,8 @@ export const MOCK_LEADS: Lead[] = [
     interestedInId: 'c_maria_clara',
     messages: generateMockMessages(3),
     unreadCount: 0,
-    requiresAttention: false
+    requiresAttention: false,
+    tags: []
   },
   {
     id: 'l3',
@@ -284,7 +294,8 @@ export const MOCK_LEADS: Lead[] = [
     interestedInId: 'p_botucatu',
     messages: generateMockMessages(10),
     unreadCount: 0,
-    requiresAttention: false
+    requiresAttention: false,
+    tags: ['t3']
   },
   {
     id: 'l4',
@@ -297,6 +308,7 @@ export const MOCK_LEADS: Lead[] = [
       { id: 'm0', sender: 'user', text: 'Boa tarde, gostaria de saber o valor.', timestamp: new Date() }
     ],
     unreadCount: 1,
-    requiresAttention: false
+    requiresAttention: false,
+    tags: ['t2']
   }
 ];

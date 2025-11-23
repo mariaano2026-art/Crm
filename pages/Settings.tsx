@@ -4,7 +4,7 @@ import { useCRM } from '../context/CRMContext';
 import { MessageSquare, Key, Server, CheckCircle, AlertCircle, Copy, ExternalLink, Zap, QrCode, Wifi, Eye, EyeOff, Save, Trash2, RefreshCw, Brain, CloudLightning, FileJson, Info } from 'lucide-react';
 
 const Settings: React.FC = () => {
-  const { whatsappStatus, setWhatsappStatus, updateApiKey, isAiReady, properties, systemInstruction, blacklist } = useCRM();
+  const { whatsappStatus, setWhatsappStatus, updateApiKey, isAiReady, properties, systemInstruction, blacklist, whatsappConfig, setWhatsappConfig } = useCRM();
   
   // Connection Method Toggle
   const [connectionMethod, setConnectionMethod] = useState<'api' | 'qrcode' | 'vercel'>('api');
@@ -19,11 +19,11 @@ const Settings: React.FC = () => {
   // Config Export State
   const [configJson, setConfigJson] = useState('');
 
-  // Mock state for form fields
+  // Form fields synced with Context
   const [formData, setFormData] = useState({
-    accessToken: '',
-    phoneNumberId: '',
-    wabaId: ''
+    accessToken: whatsappConfig.accessToken,
+    phoneNumberId: whatsappConfig.phoneNumberId,
+    wabaId: whatsappConfig.wabaId
   });
 
   const [isTesting, setIsTesting] = useState(false);
@@ -34,7 +34,13 @@ const Settings: React.FC = () => {
       if (stored) {
           setApiKeyInput(stored);
       }
-  }, []);
+      // Sync form with context config
+      setFormData({
+          accessToken: whatsappConfig.accessToken,
+          phoneNumberId: whatsappConfig.phoneNumberId,
+          wabaId: whatsappConfig.wabaId
+      });
+  }, [whatsappConfig]);
 
   const generateConfigJson = () => {
       const config = {
@@ -79,7 +85,8 @@ const Settings: React.FC = () => {
     setTimeout(() => {
       setIsTesting(false);
       if (formData.accessToken && formData.phoneNumberId) {
-        setWhatsappStatus('connected');
+        setWhatsappConfig(formData);
+        alert("Configurações salvas e conectadas! Agora o chat pode sincronizar etiquetas e mensagens.");
       } else {
         alert("Por favor, preencha o Token de Acesso e o ID do Telefone.");
       }
@@ -103,7 +110,7 @@ const Settings: React.FC = () => {
   }
 
   const handleDisconnect = () => {
-    setWhatsappStatus('disconnected');
+    setWhatsappConfig({ accessToken: '', phoneNumberId: '', wabaId: '' });
     setFormData({ accessToken: '', phoneNumberId: '', wabaId: '' });
     setQrStatus('idle');
   };
@@ -303,7 +310,7 @@ const Settings: React.FC = () => {
                                     <h3 className="font-semibold text-gray-800 flex items-center gap-2">
                                         Credenciais da Meta (Teste Local)
                                     </h3>
-                                    <p className="text-sm text-gray-500 mt-1">Use esta aba para testar a conexão enquanto usa o navegador. Para automação 24h, use a aba "Integração Vercel".</p>
+                                    <p className="text-sm text-gray-500 mt-1">Use esta aba para conectar diretamente. Isso ativará a sincronização de etiquetas e mensagens em tempo real.</p>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Token de Acesso</label>

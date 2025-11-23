@@ -11,6 +11,9 @@ export default defineConfig(({ mode }) => {
       'process.env.API_KEY': JSON.stringify(env.API_KEY),
       // Fallback para evitar erros se acessar process.env diretamente
       'process.env': {}
+    },
+    build: {
+      chunkSizeWarningLimit: 1600, // Aumenta o limite para 1600kb para evitar warnings
     }
   };
 });

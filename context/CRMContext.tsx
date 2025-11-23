@@ -1,8 +1,7 @@
 
-
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { Lead, Property, Message, View, LeadStatus, FollowUpConfig, MessageTimerSettings, VoiceSettings } from '../types';
-import { MOCK_LEADS, MOCK_PROPERTIES, DEFAULT_FOLLOWUP_CONFIG, DEFAULT_TIMER_SETTINGS, VOICE_PRESETS } from '../constants';
+import { Lead, Property, Message, View, LeadStatus, FollowUpConfig, MessageTimerSettings, VoiceSettings, QuickReply, Tag, WhatsAppConfig } from '../types';
+import { MOCK_LEADS, MOCK_PROPERTIES, DEFAULT_FOLLOWUP_CONFIG, DEFAULT_TIMER_SETTINGS, VOICE_PRESETS, DEFAULT_TAGS } from '../constants';
 import { generateAIResponse, generateFollowUp, classifyLeadTemperature, generateAudioFromText, isAIConfigured, transcribeAudio } from '../services/geminiService';
 
 export const DEFAULT_SYSTEM_PROMPT = `🚀 PROMPT FINAL – IA CORRETOR HUMANIZADA (VERSÃO DE ALTA CONVERSÃO)
@@ -67,6 +66,13 @@ Seu objetivo é criar conexão e levar o cliente ao ESTANDE DE VENDAS de forma n
 O sucesso da conversa é o cliente concordar em ir à Rua Isabel, 507.
 Toda sua conversa deve, sutilmente, guiar para isso.`;
 
+export const DEFAULT_QUICK_REPLIES: QuickReply[] = [
+    { id: 'qr_1', label: "Agendar Visita", text: "Que tal agendarmos uma visita para você conhecer pessoalmente? Qual horário fica bom para você?" },
+    { id: 'qr_2', label: "Pedir Proposta", text: "Gostaria de fazer uma proposta? Consigo verificar condições especiais hoje." },
+    { id: 'qr_3', label: "Enviar Localização", text: "Vou te enviar a localização exata pelo Google Maps." },
+    { id: 'qr_4', label: "Financiamento", text: "Trabalhamos com todos os bancos. Gostaria de uma simulação?" }
+];
+
 export type AIActivityStatus = 'idle' | 'typing' | 'recording';
 
 interface CRMContextType {
@@ -104,6 +110,8 @@ interface CRMContextType {
   blacklist: string[];
   addToBlacklist: (phone: string) => void;
   removeFromBlacklist: (phone: string) => void;
+  quickReplies: QuickReply[];
+  setQuickReplies: (replies: QuickReply[]) => void;
   updateApiKey: (key: string) => void;
   isAiReady: boolean;
   exportData: () => void;
@@ -111,6 +119,23 @@ interface CRMContextType {
   exportProperties: () => void;
   importProperties: (jsonData: string) => boolean;
   clearAllData: () => void;
+  
+  // WhatsApp Config
+  whatsappConfig: WhatsAppConfig;
+  setWhatsappConfig: (config: WhatsAppConfig) => void;
+
+  // Tag System
+  tags: Tag[];
+  addTag: (name: string, color: string) => void;
+  removeTag: (id: string) => void;
+  assignTagToLead: (leadId: string, tagId: string) => void;
+  removeTagFromLead: (leadId: string, tagId: string) => void;
+
+  // Chat Actions
+  clearChat: (leadId: string) => void;
+  deleteLead: (leadId: string) => void;
+  archiveLead: (leadId: string) => void;
+  unarchiveLead: (leadId: string) => void;
 }
 
 const CRMContext = createContext<CRMContextType | undefined>(undefined);
@@ -147,6 +172,36 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return saved ? JSON.parse(saved) : [];
       } catch (e) {
           return [];
+      }
+  });
+
+  // Quick Replies State
+  const [quickReplies, setQuickReplies] = useState<QuickReply[]>(() => {
+      try {
+          const saved = localStorage.getItem('crm_quick_replies');
+          return saved ? JSON.parse(saved) : DEFAULT_QUICK_REPLIES;
+      } catch (e) {
+          return DEFAULT_QUICK_REPLIES;
+      }
+  });
+
+  // Tags State
+  const [tags, setTags] = useState<Tag[]>(() => {
+      try {
+          const saved = localStorage.getItem('crm_tags');
+          return saved ? JSON.parse(saved) : DEFAULT_TAGS;
+      } catch (e) {
+          return DEFAULT_TAGS;
+      }
+  });
+
+  // WhatsApp Config State
+  const [whatsappConfig, setWhatsappConfig] = useState<WhatsAppConfig>(() => {
+      try {
+          const saved = localStorage.getItem('crm_whatsapp_config');
+          return saved ? JSON.parse(saved) : { accessToken: '', phoneNumberId: '', wabaId: '' };
+      } catch (e) {
+          return { accessToken: '', phoneNumberId: '', wabaId: '' };
       }
   });
   // --- PERSISTENCE LOGIC END ---
@@ -226,12 +281,24 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => { localStorage.setItem('crm_system_instruction', systemInstruction); }, [systemInstruction]);
   useEffect(() => { localStorage.setItem('crm_blacklist', JSON.stringify(blacklist)); }, [blacklist]);
+  useEffect(() => { localStorage.setItem('crm_quick_replies', JSON.stringify(quickReplies)); }, [quickReplies]);
+  useEffect(() => { localStorage.setItem('crm_tags', JSON.stringify(tags)); }, [tags]);
+  useEffect(() => { localStorage.setItem('crm_whatsapp_config', JSON.stringify(whatsappConfig)); }, [whatsappConfig]);
   useEffect(() => { localStorage.setItem('crm_user_triggers', JSON.stringify(userAttentionTriggers)); }, [userAttentionTriggers]);
   useEffect(() => { localStorage.setItem('crm_ai_triggers', JSON.stringify(aiAttentionTriggers)); }, [aiAttentionTriggers]);
   useEffect(() => { localStorage.setItem('crm_followup_config', JSON.stringify(followUpConfig)); }, [followUpConfig]);
   useEffect(() => { localStorage.setItem('crm_timers', JSON.stringify(timerSettings)); }, [timerSettings]);
   useEffect(() => { localStorage.setItem('crm_voice', JSON.stringify(voiceSettings)); }, [voiceSettings]);
   useEffect(() => { localStorage.setItem('crm_ai_pause', aiPauseDuration.toString()); }, [aiPauseDuration]);
+
+  // Sync WhatsApp Connection Status based on tokens
+  useEffect(() => {
+      if (whatsappConfig.accessToken && whatsappConfig.phoneNumberId) {
+          setWhatsappStatus('connected');
+      } else {
+          setWhatsappStatus('disconnected');
+      }
+  }, [whatsappConfig]);
 
   useEffect(() => {
     audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
@@ -297,7 +364,9 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           interestedInId: interestId,
           messages: [],
           unreadCount: 0,
-          requiresAttention: false
+          requiresAttention: false,
+          tags: [],
+          archived: false
       };
       setLeads(prev => [newLead, ...prev]);
   };
@@ -346,6 +415,84 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setFollowUpConfig(DEFAULT_FOLLOWUP_CONFIG);
   };
 
+  // --- TAG MANAGEMENT FUNCTIONS (REAL WHATSAPP SYNC) ---
+  const syncTagToWhatsApp = async (tag: Tag) => {
+      // Stub function: This would effectively call the Meta API to create a Label
+      if (whatsappConfig.accessToken && whatsappConfig.phoneNumberId) {
+          console.log(`[REAL SYNC] Creating/Updating Label on WhatsApp: ${tag.name}`);
+          // const response = await fetch(`https://graph.facebook.com/v18.0/${whatsappConfig.phoneNumberId}/...`);
+      }
+  };
+
+  const addTag = (name: string, color: string) => {
+      const newTag: Tag = { id: Date.now().toString(), name, color };
+      setTags(prev => [...prev, newTag]);
+      syncTagToWhatsApp(newTag);
+  };
+
+  const removeTag = (id: string) => {
+      setTags(prev => prev.filter(t => t.id !== id));
+      // Clean up deleted tag from leads
+      setLeads(prev => prev.map(l => ({
+          ...l,
+          tags: l.tags?.filter(tId => tId !== id)
+      })));
+  };
+
+  const assignTagToLead = (leadId: string, tagId: string) => {
+      setLeads(prev => prev.map(l => {
+          if (l.id === leadId) {
+              const currentTags = l.tags || [];
+              if (!currentTags.includes(tagId)) {
+                  // Stub: Sync user label to WhatsApp
+                  if (whatsappConfig.accessToken) {
+                      console.log(`[REAL SYNC] Assigning Label ${tagId} to User ${l.phone}`);
+                  }
+                  return { ...l, tags: [...currentTags, tagId] };
+              }
+          }
+          return l;
+      }));
+  };
+
+  const removeTagFromLead = (leadId: string, tagId: string) => {
+      setLeads(prev => prev.map(l => {
+          if (l.id === leadId) {
+              // Stub: Remove user label from WhatsApp
+              if (whatsappConfig.accessToken) {
+                  console.log(`[REAL SYNC] Removing Label ${tagId} from User ${l.phone}`);
+              }
+              return { ...l, tags: l.tags?.filter(t => t !== tagId) || [] };
+          }
+          return l;
+      }));
+  };
+
+  // --- CHAT ACTIONS ---
+  const clearChat = (leadId: string) => {
+      if(confirm("Tem certeza que deseja apagar todas as mensagens desta conversa?")) {
+        setLeads(prev => prev.map(l => l.id === leadId ? { ...l, messages: [] } : l));
+      }
+  };
+
+  const deleteLead = (leadId: string) => {
+      if(confirm("Tem certeza que deseja excluir este contato permanentemente?")) {
+          setLeads(prev => prev.filter(l => l.id !== leadId));
+          if(selectedLeadId === leadId) setSelectedLeadId(null);
+      }
+  };
+
+  const archiveLead = (leadId: string) => {
+      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, archived: true, requiresAttention: false, unreadCount: 0 } : l));
+      if (selectedLeadId === leadId) {
+          setSelectedLeadId(null);
+      }
+  };
+
+  const unarchiveLead = (leadId: string) => {
+      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, archived: false } : l));
+  }
+
   const checkAttentionTriggers = (text: string, source: 'user' | 'ai'): boolean => {
       const lowerText = text.toLowerCase();
       const currentTriggers = source === 'user' ? userAttentionTriggers : aiAttentionTriggers;
@@ -363,6 +510,9 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           leads,
           properties,
           blacklist,
+          quickReplies,
+          tags,
+          whatsappConfig,
           systemInstruction,
           userAttentionTriggers,
           aiAttentionTriggers,
@@ -391,6 +541,9 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setLeads(data.leads);
           setProperties(data.properties);
           setBlacklist(data.blacklist || []);
+          if (data.quickReplies) setQuickReplies(data.quickReplies);
+          if (data.tags) setTags(data.tags);
+          if (data.whatsappConfig) setWhatsappConfig(data.whatsappConfig);
           setSystemInstruction(data.systemInstruction || DEFAULT_SYSTEM_PROMPT);
           setUserAttentionTriggers(data.userAttentionTriggers || []);
           setAiAttentionTriggers(data.aiAttentionTriggers || []);
@@ -469,7 +622,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             messages: [...lead.messages, newMessage],
             lastContact: new Date(),
             unreadCount: sender === 'agent' ? 0 : lead.unreadCount + 1,
-            aiPausedUntil: sender === 'agent' ? newPausedUntil : lead.aiPausedUntil
+            aiPausedUntil: sender === 'agent' ? newPausedUntil : lead.aiPausedUntil,
+            archived: false // Sempre desarquiva se chegar mensagem nova
           };
         }
         return lead;
@@ -494,14 +648,12 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
              // --- LÓGICA DE TRANSCRIÇÃO E CONTEXTO DE ÁUDIO ---
              let contextText = text;
              
-             // Se o usuário mandou áudio, transcrevemos para o contexto da IA
              if (mediaType === 'audio' && mediaUrl) {
-                setAiActivity('typing'); // Mostra que a IA está "ouvindo"/processando
+                setAiActivity('typing'); 
                 try {
                     const transcription = await transcribeAudio(mediaUrl);
                     if (transcription) {
                         contextText = transcription;
-                        // Atualiza a mensagem original no estado com a transcrição
                         setLeads(prev => prev.map(l => {
                             if (l.id === selectedLeadId) {
                                 return {
@@ -518,12 +670,10 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 setAiActivity('idle');
              }
 
-             // Monta o histórico incluindo a mensagem atual já com contexto de texto (seja transcrito ou original)
              const historyForAI = [...freshLead.messages, { ...newMessage, transcription: mediaType === 'audio' ? contextText : undefined, text: contextText }];
              
              const rawResponseText = await generateAIResponse(freshLead, properties, historyForAI, systemInstruction);
              
-             // --- EXTRAÇÃO DE TAGS DE MÍDIA E LÓGICA DE SELEÇÃO INTELIGENTE ---
              const photoRegex = /\[SEND[-_\s]?PHOTO\]/i;
              const videoRegex = /\[SEND[-_\s]?VIDEO\]/i;
              const planRegex = /\[SEND[-_\s]?PLAN\]/i;
@@ -531,53 +681,70 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
              let finalText = rawResponseText;
              let mediaToSend: { url: string, type: 'image' | 'video', caption: string } | null = null;
              
-             // 1. Tenta identificar o imóvel pelo contexto da conversa se o Lead não tiver um fixo
              let interestedProp = properties.find(p => p.id === freshLead.interestedInId);
              
              if (!interestedProp) {
-                 // Fallback: Tenta achar o nome do imóvel na mensagem do usuário ou na resposta da IA
                  const combinedText = contextText + " " + rawResponseText;
                  interestedProp = detectPropertyFromContext(combinedText);
                  
-                 // Se ainda assim não achar, usa o primeiro (comportamento padrão, mas agora minimizado)
                  if (!interestedProp && properties.length > 0) {
                      interestedProp = properties[0];
                  }
              }
 
              if (interestedProp) {
-                // Se a gente detectou um imóvel novo pelo contexto, atualiza o lead para focar nesse imóvel
                 if (interestedProp.id !== freshLead.interestedInId) {
                     setLeads(prev => prev.map(l => l.id === selectedLeadId ? { ...l, interestedInId: interestedProp!.id } : l));
                 }
 
                 if (photoRegex.test(rawResponseText)) {
-                    const imgUrl = (interestedProp.images && interestedProp.images.length > 0) 
-                        ? interestedProp.images[0] 
-                        : interestedProp.imageUrl;
-                    mediaToSend = { url: imgUrl, type: 'image', caption: `📸 Foto: ${interestedProp.name}` };
-                    finalText = rawResponseText.replace(photoRegex, '').trim();
+                    let imgUrl = null;
+                    let caption = `📸 Foto: ${interestedProp.name}`;
+
+                    if (interestedProp.images && interestedProp.images.length > 0) {
+                        imgUrl = interestedProp.images[0];
+                    } else if (interestedProp.imageUrl && !interestedProp.imageUrl.includes('placeholder')) {
+                        imgUrl = interestedProp.imageUrl;
+                    }
+
+                    if (imgUrl) {
+                        mediaToSend = { url: imgUrl, type: 'image', caption: caption };
+                    } else if (interestedProp.externalLink) {
+                         finalText = rawResponseText.replace(photoRegex, `\n\nVocê pode ver as fotos no site oficial: ${interestedProp.externalLink}`).trim();
+                    }
+                    
+                    if (imgUrl) finalText = rawResponseText.replace(photoRegex, '').trim();
                 }
+                
                 else if (videoRegex.test(rawResponseText)) {
                     if (interestedProp.videos && interestedProp.videos.length > 0) {
-                        mediaToSend = { url: interestedProp.videos[0], type: 'video', caption: `🎥 Vídeo: ${interestedProp.name}` };
-                    } else {
+                        mediaToSend = { 
+                            url: interestedProp.videos[0], 
+                            type: 'video', 
+                            caption: `🎥 Vídeo: ${interestedProp.name}` 
+                        };
+                        finalText = rawResponseText.replace(videoRegex, '').trim();
+                    } 
+                    else if (interestedProp.videoLink) {
+                         finalText = rawResponseText.replace(videoRegex, `\n\n🎥 Assista ao vídeo do imóvel aqui: ${interestedProp.videoLink}`).trim();
+                    } 
+                    else if (interestedProp.externalLink) {
+                         finalText = rawResponseText.replace(videoRegex, `\n\nNão tenho o arquivo de vídeo aqui, mas você pode fazer um tour no site: ${interestedProp.externalLink}`).trim();
+                    } 
+                    else {
                          const imgFallback = (interestedProp.images && interestedProp.images.length > 0) ? interestedProp.images[0] : interestedProp.imageUrl;
-                         mediaToSend = { url: imgFallback, type: 'image', caption: `🎥 Vídeo indisponível. Veja esta foto do ${interestedProp.name}.` };
+                         mediaToSend = { url: imgFallback, type: 'image', caption: `🎥 Vídeo indisponível no momento. Veja esta foto do ${interestedProp.name}.` };
+                         finalText = rawResponseText.replace(videoRegex, '').trim();
                     }
-                    finalText = rawResponseText.replace(videoRegex, '').trim();
                 }
-                // --- LÓGICA DE PLANTA INTELIGENTE (Detecta Unidade Específica) ---
+                
                 else if (planRegex.test(rawResponseText)) {
                     let bestPlanUrl: string | null = null;
                     let bestCaption = `📐 Planta Baixa: ${interestedProp.name}`;
                     
-                    // Concatena texto do usuário e resposta da IA para buscar pistas da unidade (ex: "3 quartos", "final 1")
                     const searchContext = (contextText + " " + rawResponseText).toLowerCase();
 
-                    // 1. Prioridade: Tenta achar planta de unidade específica mencionada
                     if (interestedProp.units && interestedProp.units.length > 0) {
-                        // Busca uma unidade cujas keywords apareçam no texto
                         const matchedUnit = interestedProp.units.find(u => {
                             if (!u.image) return false;
                             const keywords = [
@@ -595,12 +762,10 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         }
                     }
 
-                    // 2. Se não achou específica, tenta a planta geral do prédio
                     if (!bestPlanUrl && interestedProp.floorPlans && interestedProp.floorPlans.length > 0) {
                         bestPlanUrl = interestedProp.floorPlans[0];
                     }
 
-                    // 3. Se não tem geral, pega a primeira unidade que tiver imagem
                     if (!bestPlanUrl && interestedProp.units && interestedProp.units.some(u => u.image)) {
                         const anyUnit = interestedProp.units.find(u => u.image);
                         if (anyUnit) {
@@ -609,18 +774,19 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         }
                     }
 
-                    // 4. FALLBACK FINAL: Foto principal com aviso
-                    if (!bestPlanUrl) {
-                        bestPlanUrl = (interestedProp.images && interestedProp.images.length > 0) ? interestedProp.images[0] : interestedProp.imageUrl;
-                        bestCaption = `⚠️ Planta indisponível. Veja uma foto ilustrativa do ${interestedProp.name}.`;
+                    if (bestPlanUrl) {
+                        mediaToSend = { url: bestPlanUrl, type: 'image', caption: bestCaption };
+                        finalText = rawResponseText.replace(planRegex, '').trim();
+                    } else if (interestedProp.floorPlanLink) {
+                        finalText = rawResponseText.replace(planRegex, `\n\nVocê pode ver a planta detalhada neste link: ${interestedProp.floorPlanLink}`).trim();
+                    } else {
+                        const fallbackImg = (interestedProp.images && interestedProp.images.length > 0) ? interestedProp.images[0] : interestedProp.imageUrl;
+                        mediaToSend = { url: fallbackImg, type: 'image', caption: `⚠️ Planta indisponível. Veja uma foto ilustrativa do ${interestedProp.name}.` };
+                        finalText = rawResponseText.replace(planRegex, '').trim();
                     }
-                    
-                    mediaToSend = { url: bestPlanUrl, type: 'image', caption: bestCaption };
-                    finalText = rawResponseText.replace(planRegex, '').trim();
                 }
              }
 
-             // --- ENVIO DE MÍDIA SE EXISTIR ---
              if (mediaToSend) {
                  setLeads(prev => prev.map(l => {
                      if (l.id === selectedLeadId) {
@@ -643,14 +809,10 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                  await new Promise(r => setTimeout(r, 1000));
              }
 
-             // --- LÓGICA DE MODALIDADE DE RESPOSTA (ESPELHAMENTO) ---
-             // Se o usuário mandou áudio, a IA responde com áudio. Se texto, texto.
-             
              let audioSent = false;
 
              if (mediaType === 'audio') {
                  setAiActivity('recording');
-                 // Remove asteriscos do markdown para o TTS falar melhor
                  const textForTTS = finalText.replace(/\*/g, '');
                  const audioUrl = await generateAudioFromText(textForTTS, voiceSettings.voiceName);
                  
@@ -667,7 +829,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                                      isMedia: true,
                                      mediaUrl: audioUrl,
                                      mediaType: 'audio',
-                                     transcription: finalText // Salvar o texto original como transcrição para visualização
+                                     transcription: finalText 
                                  }],
                                  unreadCount: 0
                              };
@@ -679,7 +841,6 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                  setAiActivity('idle');
              }
 
-             // Se não foi enviado áudio (porque a entrada era texto OU falha na geração de áudio), envia texto
              if (!audioSent) {
                 const textChunks = finalText.split(/\n+/).filter(chunk => chunk.trim().length > 0);
                 let attentionNeeded = false;
@@ -715,7 +876,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
              if (newTemp) setLeads(prev => prev.map(l => l.id === selectedLeadId ? { ...l, status: newTemp } : l));
         }
     }
-  }, [selectedLeadId, leads, properties, systemInstruction, userAttentionTriggers, aiAttentionTriggers, aiPauseDuration, timerSettings, voiceSettings, playNotificationSound, blacklist]);
+  }, [selectedLeadId, leads, properties, systemInstruction, userAttentionTriggers, aiAttentionTriggers, aiPauseDuration, timerSettings, voiceSettings, playNotificationSound, blacklist, whatsappConfig]);
 
   const generateAIFollowUp = async () => {
     if (!selectedLeadId) return;
@@ -746,8 +907,16 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       generateAIFollowUp, aiActivity, systemInstruction, setSystemInstruction, whatsappStatus, setWhatsappStatus, resolveAttention,
       userAttentionTriggers, setUserAttentionTriggers, aiAttentionTriggers, setAiAttentionTriggers, updateLeadStatus,
       followUpConfig, setFollowUpConfig, resetFollowUpConfig, aiPauseDuration, setAiPauseDuration, timerSettings, setTimerSettings,
-      voiceSettings, setVoiceSettings, blacklist, addToBlacklist, removeFromBlacklist, updateApiKey, isAiReady,
-      exportData, importData, exportProperties, importProperties, clearAllData
+      voiceSettings, setVoiceSettings, blacklist, addToBlacklist, removeFromBlacklist, 
+      quickReplies, setQuickReplies,
+      updateApiKey, isAiReady,
+      exportData, importData, exportProperties, importProperties, clearAllData,
+      // TAGS
+      tags, addTag, removeTag, assignTagToLead, removeTagFromLead,
+      // CHAT ACTIONS
+      clearChat, deleteLead, archiveLead, unarchiveLead,
+      // WHATSAPP CONFIG
+      whatsappConfig, setWhatsappConfig
     }}>
       {children}
     </CRMContext.Provider>
