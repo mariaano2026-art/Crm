@@ -1,16 +1,26 @@
+
+
 import React from 'react';
 import { useCRM } from '../context/CRMContext';
-import { LayoutDashboard, Users, MessageSquare, Building2, Settings, LogOut, Brain, FlaskConical, Bell, Kanban, ShieldAlert, Database } from 'lucide-react';
+import { LayoutDashboard, Users, MessageSquare, Building2, Settings, LogOut, Brain, FlaskConical, Bell, Kanban, ShieldAlert, Database, X } from 'lucide-react';
 import { View } from '../types';
 
-const Sidebar: React.FC = () => {
+interface SidebarProps {
+    onClose?: () => void;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
   const { currentView, setCurrentView, leads } = useCRM();
 
   const leadsWithAttention = leads.filter(l => l.requiresAttention).length;
 
+  const handleNav = (view: View) => {
+      setCurrentView(view);
+      if (onClose) onClose();
+  };
+
   const NavItem = ({ view, icon: Icon, label, badge }: { view: View; icon: any; label: string, badge?: number }) => {
     const isActive = currentView === view;
-    // Specific logic for attention seeking on Chat tab
     const isAlerting = view === 'chat' && badge && badge > 0;
 
     let btnClass = "w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all mb-1 group ";
@@ -25,7 +35,7 @@ const Sidebar: React.FC = () => {
 
     return (
       <button
-        onClick={() => setCurrentView(view)}
+        onClick={() => handleNav(view)}
         className={btnClass}
       >
         <div className="flex items-center gap-3">
@@ -42,16 +52,22 @@ const Sidebar: React.FC = () => {
   };
 
   return (
-    <div className="w-64 bg-white h-screen border-r border-gray-200 flex flex-col fixed left-0 top-0 z-20">
-      <div className="p-6 border-b border-gray-100">
+    <div className="w-64 bg-white h-screen border-r border-gray-200 flex flex-col shadow-xl md:shadow-none">
+      <div className="p-6 border-b border-gray-100 flex justify-between items-center">
         <div className="flex items-center gap-2 text-emerald-600">
           <Building2 size={32} />
-          <h1 className="text-xl font-bold tracking-tight">ConstrutoraGPT</h1>
+          <div>
+              <h1 className="text-xl font-bold tracking-tight leading-none">ConstrutoraGPT</h1>
+              <p className="text-[10px] text-gray-400 mt-1 font-medium uppercase tracking-wider">CRM Inteligente</p>
+          </div>
         </div>
-        <p className="text-xs text-gray-400 mt-1">CRM Inteligente</p>
+        {/* Mobile Close Button */}
+        <button onClick={onClose} className="md:hidden text-gray-400 hover:text-gray-600">
+            <X size={24} />
+        </button>
       </div>
 
-      <nav className="flex-1 p-4 overflow-y-auto">
+      <nav className="flex-1 p-4 overflow-y-auto custom-scrollbar">
         <NavItem view="dashboard" icon={LayoutDashboard} label="Dashboard" />
         <NavItem view="pipeline" icon={Kanban} label="Pipeline de Vendas" />
         <NavItem view="leads" icon={Users} label="Gestão de Leads" badge={leadsWithAttention > 0 ? leadsWithAttention : undefined} />

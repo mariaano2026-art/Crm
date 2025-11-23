@@ -76,12 +76,12 @@ const DataManagement: React.FC = () => {
                     </div>
                     <h3 className="text-lg font-bold text-gray-800 mb-2">Backup Completo do Sistema</h3>
                     <p className="text-sm text-gray-500 mb-6 min-h-[40px]">
-                        Salva <strong>TUDO</strong> o que você configurou:
-                        <ul className="list-disc pl-4 mt-2 space-y-1 text-xs">
-                            <li>Diretrizes da IA e Prompts de Treinamento</li>
-                            <li>Personalidade e Configurações de Voz</li>
-                            <li>Imóveis, Leads e Histórico de Conversas</li>
-                            <li>Blacklist e Regras de Follow-up</li>
+                        Salva <strong>TUDO</strong> o que você configurou no sistema. Ideal para manter seus padrões de atendimento salvos:
+                        <ul className="list-disc pl-4 mt-2 space-y-1 text-xs text-gray-600">
+                            <li><strong>Diretrizes e Treinamento da IA</strong> (Seus prompts personalizados)</li>
+                            <li><strong>Personalidade e Voz</strong> (Configurações de áudio e tom)</li>
+                            <li><strong>Todos os Imóveis</strong> (Fotos, preços e descrições)</li>
+                            <li><strong>Leads e Histórico</strong> (Conversas e status do pipeline)</li>
                         </ul>
                     </p>
 

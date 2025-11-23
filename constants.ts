@@ -1,128 +1,184 @@
+
+
 import { Lead, LeadStatus, Message, Property, FollowUpConfig, MessageTimerSettings, VoiceSettings } from './types';
 
 export const MOCK_PROPERTIES: Property[] = [
+  // --- PRÉDIO 1: TEQUICI ---
   {
-    id: 'p1',
-    name: 'Edifício Horizonte Azul',
+    id: 'p_tequici',
+    name: 'Edifício Tequici',
     type: 'Prédio',
-    address: 'Rua das Flores, 123 - Centro',
-    price: 450000,
+    address: 'Rua Tequici, 6',
+    price: 380000, 
     status: 'Em Construção',
-    description: 'Apartamentos modernos com vista para o mar. Área de lazer completa na cobertura.',
-    features: ['Piscina', 'Academia', 'Varanda Gourmet'],
-    imageUrl: 'https://picsum.photos/800/600?random=1',
-    specs: '2 e 3 Quartos',
-    images: ['https://picsum.photos/800/600?random=1', 'https://picsum.photos/800/600?random=10'],
-    videos: ['https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4'],
-    floorPlans: ['https://via.placeholder.com/800x600.png?text=Planta+Geral'],
+    description: 'Empreendimento em fase acelerada de obras na Rua Tequici, número 6. Localização privilegiada e acabamento de primeira.',
+    features: ['Elevador', 'Varanda Gourmet', 'Vaga Coberta', 'Portaria Eletrônica'],
+    imageUrl: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&q=80&w=800',
+    specs: '5 Tipologias Disponíveis',
+    images: [
+        'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&q=80&w=800',
+        'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&q=80&w=800'
+    ],
+    videos: [],
+    floorPlans: [],
     units: [
         {
-            id: 'u1',
-            name: 'Tipo A - 2 Dormitórios',
-            price: 450000,
-            size: '65m²',
-            bedrooms: 2,
+            id: 'u_teq_1',
+            name: 'Final 1 - Compacto',
+            price: 380000,
+            size: '42m²',
+            bedrooms: 1,
             bathrooms: 1,
-            image: 'https://via.placeholder.com/800x600.png?text=Planta+2+Dorms',
-            description: 'Unidade compacta com varanda gourmet integrada.'
+            description: 'Ideal para investidores ou solteiros.'
         },
         {
-            id: 'u2',
-            name: 'Tipo B - 3 Dormitórios (Suíte)',
-            price: 620000,
-            size: '85m²',
-            bedrooms: 3,
-            bathrooms: 2,
-            image: 'https://via.placeholder.com/800x600.png?text=Planta+3+Dorms',
-            description: 'Unidade espaçosa de frente para o mar.'
-        }
-    ]
-  },
-  {
-    id: 'p2',
-    name: 'Residencial Vista Verde',
-    type: 'Prédio',
-    address: 'Av. da Montanha, 880 - Jardim Alto',
-    price: 320000,
-    status: 'Na Planta',
-    description: 'O melhor investimento da região. Condições facilitadas de pagamento.',
-    features: ['Playground', 'Salão de Festas', 'Portaria 24h'],
-    imageUrl: 'https://picsum.photos/800/600?random=2',
-    specs: '60m², 2 Quartos',
-    images: ['https://picsum.photos/800/600?random=2'],
-    videos: [],
-    floorPlans: ['https://via.placeholder.com/800x600.png?text=Planta+Vista+Verde'],
-    units: [
-        {
-            id: 'u3',
-            name: 'Planta Padrão',
-            price: 320000,
-            size: '60m²',
+            id: 'u_teq_2',
+            name: 'Final 2 - Casal',
+            price: 450000,
+            size: '55m²',
             bedrooms: 2,
             bathrooms: 1,
-            description: 'Ideal para investimento.'
+            description: 'Dois dormitórios com sacada.'
+        },
+        {
+            id: 'u_teq_3',
+            name: 'Final 3 - Família',
+            price: 580000,
+            size: '68m²',
+            bedrooms: 2,
+            bathrooms: 2,
+            description: 'Com suíte e vista livre.'
+        },
+        {
+            id: 'u_teq_4',
+            name: 'Final 4 - Ampliado',
+            price: 650000,
+            size: '75m²',
+            bedrooms: 3,
+            bathrooms: 2,
+            description: 'Três dormitórios para maior conforto.'
+        },
+        {
+            id: 'u_teq_5',
+            name: 'Final 5 - Garden',
+            price: 720000,
+            size: '90m²',
+            bedrooms: 2,
+            bathrooms: 2,
+            description: 'Térreo com área externa privativa.'
         }
     ]
   },
+
+  // --- PRÉDIO 2: SERRA DE BOTUCATU ---
   {
-    id: 'c1',
-    name: 'Casa Bosque I',
+    id: 'p_botucatu',
+    name: 'Residencial Serra de Botucatu',
+    type: 'Prédio',
+    address: 'Rua Serra de Botucatu, 1000',
+    price: 490000, 
+    status: 'Na Planta',
+    description: 'Grande Lançamento! Oportunidade de comprar na planta na Rua Serra de Botucatu, 1000. Condições especiais de lançamento.',
+    features: ['Lazer Completo', 'Piscina', 'Academia', 'Coworking'],
+    imageUrl: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=800',
+    specs: '3 Tipologias (Lançamento)',
+    images: [
+        'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=800', 
+        'https://images.unsplash.com/photo-1574362848149-11496d93a7c7?auto=format&fit=crop&q=80&w=800'
+    ],
+    videos: [],
+    floorPlans: [],
+    units: [
+        {
+            id: 'u_bot_1',
+            name: 'Planta Smart',
+            price: 490000,
+            size: '50m²',
+            bedrooms: 2,
+            bathrooms: 1,
+            description: 'Entrada facilitada.'
+        },
+        {
+            id: 'u_bot_2',
+            name: 'Planta Comfort',
+            price: 680000,
+            size: '72m²',
+            bedrooms: 3,
+            bathrooms: 2,
+            description: 'Varanda gourmet integrada.'
+        },
+        {
+            id: 'u_bot_3',
+            name: 'Cobertura Duplex',
+            price: 1100000,
+            size: '130m²',
+            bedrooms: 3,
+            bathrooms: 3,
+            description: 'Exclusividade no topo do prédio.'
+        }
+    ]
+  },
+  
+  // --- CASAS ---
+  {
+    id: 'c_maria_clara',
+    name: 'Casa Maria Clara',
     type: 'Casa',
-    address: 'Condomínio Real, Lote 4',
-    price: 850000,
+    address: 'Rua Maria Clara',
+    price: 750000,
     status: 'Pronto',
-    description: 'Casa de alto padrão com acabamento premium. Pronta para morar.',
-    features: ['Pé direito duplo', 'Área Gourmet', '4 Vagas'],
-    imageUrl: 'https://picsum.photos/800/600?random=3',
-    specs: '220m², 4 Suítes',
-    images: ['https://picsum.photos/800/600?random=3', 'https://picsum.photos/800/600?random=30'],
+    description: 'Casa térrea aconchegante localizada na Rua Maria Clara.',
+    features: ['Quintal', '2 Vagas', 'Cozinha Americana', 'Reformada'],
+    imageUrl: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b91d?auto=format&fit=crop&q=80&w=800',
+    specs: '3 Dormitórios',
+    images: ['https://images.unsplash.com/photo-1580587771525-78b9dba3b91d?auto=format&fit=crop&q=80&w=800'],
     videos: [],
     floorPlans: []
   },
   {
-    id: 'c2',
-    name: 'Casa Bosque II',
+    id: 'c_padre',
+    name: 'Casa Padre Lourenço',
     type: 'Casa',
-    address: 'Condomínio Real, Lote 5',
-    price: 870000,
+    address: 'Rua Padre Lourenço',
+    price: 890000,
     status: 'Em Construção',
-    description: 'Projeto arquitetônico moderno com integração total dos ambientes.',
-    features: ['Piscina Privativa', 'Energia Solar', 'Automação'],
-    imageUrl: 'https://picsum.photos/800/600?random=4',
-    specs: '230m², 4 Suítes',
-    images: ['https://picsum.photos/800/600?random=4'],
-    videos: ['https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'],
-    floorPlans: ['https://via.placeholder.com/800x600.png?text=Planta+Casa+Bosque']
-  },
-  {
-    id: 'c3',
-    name: 'Sobrado Jardim Sul',
-    type: 'Casa',
-    address: 'Rua dos Ipês, 45',
-    price: 550000,
-    status: 'Pronto',
-    description: 'Sobrado espaçoso em bairro tranquilo. Ótimo quintal.',
-    features: ['Churrasqueira', 'Escritório', 'Cozinha Planejada'],
-    imageUrl: 'https://picsum.photos/800/600?random=5',
-    specs: '180m², 3 Quartos',
-    images: ['https://picsum.photos/800/600?random=5'],
+    description: 'Sobrado moderno em construção na Rua Padre Lourenço. Arquitetura diferenciada.',
+    features: ['Suíte Master', 'Área Gourmet', 'Porcelanato', 'Garagem Subterrânea'],
+    imageUrl: 'https://images.unsplash.com/photo-1600596542815-2750aa9412a9?auto=format&fit=crop&q=80&w=800',
+    specs: '3 Suítes',
+    images: ['https://images.unsplash.com/photo-1600596542815-2750aa9412a9?auto=format&fit=crop&q=80&w=800'],
     videos: [],
     floorPlans: []
   },
   {
-    id: 'c4',
-    name: 'Casa Térrea Norte',
+    id: 'c_colatina',
+    name: 'Casa Colatina',
     type: 'Casa',
-    address: 'Av. Norte, 200',
-    price: 420000,
-    status: 'Em Construção',
-    description: 'Casa térrea prática e acessível. Entrega em 6 meses.',
-    features: ['Jardim de Inverno', 'Garagem Coberta'],
-    imageUrl: 'https://picsum.photos/800/600?random=6',
-    specs: '110m², 2 Suítes',
-    images: ['https://picsum.photos/800/600?random=6'],
+    address: 'Rua Colatina',
+    price: 620000,
+    status: 'Pronto',
+    description: 'Ótima oportunidade na Rua Colatina. Casa bem localizada e documentação OK.',
+    features: ['Bairro Tranquilo', 'Documentação OK', 'Perto de Comércio'],
+    imageUrl: 'https://images.unsplash.com/photo-1568605114967-8130f3a36f89?auto=format&fit=crop&q=80&w=800',
+    specs: '2 Dormitórios',
+    images: ['https://images.unsplash.com/photo-1568605114967-8130f3a36f89?auto=format&fit=crop&q=80&w=800'],
     videos: [],
-    floorPlans: ['https://via.placeholder.com/800x600.png?text=Planta+Casa+Norte']
+    floorPlans: []
+  },
+  {
+    id: 'c_alta_garca',
+    name: 'Casa Alta Garça',
+    type: 'Casa',
+    address: 'Rua Alto Garça',
+    price: 1200000,
+    status: 'Em Construção',
+    description: 'Projeto de alto padrão na Rua Alto Garça. Acabamento luxuoso.',
+    features: ['Piscina', 'Pé Direito Duplo', '4 Vagas', 'Automação'],
+    imageUrl: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=800',
+    specs: '4 Suítes',
+    images: ['https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=800'],
+    videos: [],
+    floorPlans: []
   }
 ];
 
@@ -132,7 +188,7 @@ const generateMockMessages = (count: number): Message[] => {
     msgs.push({
       id: `m${i}`,
       sender: i % 2 === 0 ? 'user' : 'agent',
-      text: i % 2 === 0 ? 'Olá, gostaria de saber mais sobre o preço.' : 'Olá! Tudo bem? O preço inicial é R$ 450.000.',
+      text: i % 2 === 0 ? 'Olá, gostaria de saber mais sobre o financiamento.' : 'Olá! Trabalhamos com todos os bancos. Qual seria o valor de entrada?',
       timestamp: new Date(Date.now() - (1000 * 60 * 60 * 24 * (count - i)))
     });
   }
@@ -183,7 +239,7 @@ export const MOCK_LEADS: Lead[] = [
     phone: '+55 11 99999-1111',
     status: LeadStatus.HOT,
     lastContact: new Date(),
-    interestedInId: 'p1',
+    interestedInId: 'p_tequici',
     messages: generateMockMessages(6),
     unreadCount: 1,
     requiresAttention: false
@@ -194,7 +250,7 @@ export const MOCK_LEADS: Lead[] = [
     phone: '+55 11 99999-2222',
     status: LeadStatus.COLD,
     lastContact: new Date(Date.now() - 86400000 * 5), // 5 days ago
-    interestedInId: 'c1',
+    interestedInId: 'c_maria_clara',
     messages: generateMockMessages(3),
     unreadCount: 0,
     requiresAttention: false
@@ -205,7 +261,7 @@ export const MOCK_LEADS: Lead[] = [
     phone: '+55 11 99999-3333',
     status: LeadStatus.WARM,
     lastContact: new Date(Date.now() - 86400000 * 1),
-    interestedInId: 'p2',
+    interestedInId: 'p_botucatu',
     messages: generateMockMessages(10),
     unreadCount: 0,
     requiresAttention: false
@@ -216,9 +272,9 @@ export const MOCK_LEADS: Lead[] = [
     phone: '+55 21 98888-4444',
     status: LeadStatus.NEW,
     lastContact: new Date(),
-    interestedInId: 'c2',
+    interestedInId: 'c_padre',
     messages: [
-      { id: 'm0', sender: 'user', text: 'Boa tarde, vi a placa na frente da obra.', timestamp: new Date() }
+      { id: 'm0', sender: 'user', text: 'Boa tarde, gostaria de saber o valor.', timestamp: new Date() }
     ],
     unreadCount: 1,
     requiresAttention: false

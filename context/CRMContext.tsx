@@ -1,4 +1,5 @@
 
+
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Lead, Property, Message, View, LeadStatus, FollowUpConfig, MessageTimerSettings, VoiceSettings } from '../types';
 import { MOCK_LEADS, MOCK_PROPERTIES, DEFAULT_FOLLOWUP_CONFIG, DEFAULT_TIMER_SETTINGS, VOICE_PRESETS } from '../constants';
@@ -31,6 +32,7 @@ interface CRMContextType {
   generateAIFollowUp: () => Promise<void>;
   aiActivity: AIActivityStatus;
   addProperty: (property: Property) => void;
+  addLead: (name: string, phone: string, interestId?: string) => void;
   systemInstruction: string;
   setSystemInstruction: (instruction: string) => void;
   whatsappStatus: 'connected' | 'disconnected';
@@ -63,11 +65,6 @@ interface CRMContextType {
 }
 
 const CRMContext = createContext<CRMContextType | undefined>(undefined);
-
-// Sonar Beep (Base64 WAV) - Short, pleasant notification sound
-const NOTIFICATION_SOUND_B64 = "data:audio/wav;base64,UklGRl9vT1BXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU"; 
-// Fallback simple beep if the above is truncated
-const SIMPLE_BEEP = "data:audio/wav;base64,UklGRl9vT1BXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU";
 
 export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentView, setCurrentView] = useState<View>('dashboard');
@@ -155,8 +152,6 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const soundLoopRef = useRef<number | null>(null);
 
   // --- SAVE TO LOCAL STORAGE EFFECTS ---
-  
-  // 1. Leads
   useEffect(() => {
       try {
           localStorage.setItem('crm_leads', JSON.stringify(leads));
@@ -165,7 +160,6 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
   }, [leads]);
 
-  // 2. Properties (Handle Quota)
   useEffect(() => {
       try {
           const json = JSON.stringify(properties);
@@ -173,21 +167,14 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (e: any) {
           if (e.name === 'QuotaExceededError' || e.toString().includes('Quota')) {
               alert("⛔ LIMITE DE ARMAZENAMENTO ATINGIDO\n\nO navegador não tem mais espaço para salvar novos dados. A última alteração foi desfeita para garantir que você não perca informações ao atualizar a página.\n\nDica: Remova imóveis antigos ou use imagens menores/comprimidas.");
-              
-              // CRITICAL: Revert state to match localStorage so user doesn't see "ghost" data
               const saved = localStorage.getItem('crm_properties');
-              if (saved) {
-                  setProperties(JSON.parse(saved));
-              } else {
-                  // Fallback if nothing was ever saved
-                  setProperties(MOCK_PROPERTIES);
-              }
+              if (saved) setProperties(JSON.parse(saved));
+              else setProperties(MOCK_PROPERTIES);
           }
           console.error("Error saving properties to localStorage", e);
       }
   }, [properties]);
 
-  // 3. Other Settings
   useEffect(() => { localStorage.setItem('crm_system_instruction', systemInstruction); }, [systemInstruction]);
   useEffect(() => { localStorage.setItem('crm_blacklist', JSON.stringify(blacklist)); }, [blacklist]);
   useEffect(() => { localStorage.setItem('crm_user_triggers', JSON.stringify(userAttentionTriggers)); }, [userAttentionTriggers]);
@@ -197,10 +184,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => { localStorage.setItem('crm_voice', JSON.stringify(voiceSettings)); }, [voiceSettings]);
   useEffect(() => { localStorage.setItem('crm_ai_pause', aiPauseDuration.toString()); }, [aiPauseDuration]);
 
-  // -------------------------------------
-
   useEffect(() => {
-    // Use Google's hosted sound if available, or fallback to local B64 if needed
     audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
     audioRef.current.volume = 0.5;
     audioRef.current.load();
@@ -209,21 +193,13 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const playNotificationSound = useCallback(() => {
     if (audioRef.current) {
         audioRef.current.currentTime = 0;
-        const playPromise = audioRef.current.play();
-        if (playPromise !== undefined) {
-            playPromise.catch(error => {
-                // Auto-play was prevented. This is normal in browsers until user interacts.
-                console.log("Audio play prevented (user interaction required):", error);
-            });
-        }
+        audioRef.current.play().catch(() => {});
     }
   }, []);
 
   useEffect(() => {
     const leadsRequiringAttention = leads.some(l => l.requiresAttention);
-    
     if (leadsRequiringAttention) {
-        // 1. Title Flashing Logic
         if (!intervalRef.current) {
             let toggle = false;
             intervalRef.current = window.setInterval(() => {
@@ -231,30 +207,23 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 toggle = !toggle;
             }, 1000);
         }
-
-        // 2. Sound Loop Logic (Repetitive Beep)
         if (!soundLoopRef.current) {
-            playNotificationSound(); // Play immediately
+            playNotificationSound();
             soundLoopRef.current = window.setInterval(() => {
                 playNotificationSound();
-            }, 3000); // Repeat every 3 seconds
+            }, 3000);
         }
-
     } else {
-        // Clear Title Interval
         if (intervalRef.current) {
             clearInterval(intervalRef.current);
             intervalRef.current = null;
             document.title = "ConstrutoraGPT CRM";
         }
-
-        // Clear Sound Interval
         if (soundLoopRef.current) {
             clearInterval(soundLoopRef.current);
             soundLoopRef.current = null;
         }
     }
-
     return () => {
         if (intervalRef.current) clearInterval(intervalRef.current);
         if (soundLoopRef.current) clearInterval(soundLoopRef.current);
@@ -269,19 +238,30 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProperties(prev => [...prev, newProp]);
   };
 
+  const addLead = (name: string, phone: string, interestId?: string) => {
+      const newLead: Lead = {
+          id: `l_${Date.now()}`,
+          name,
+          phone,
+          status: LeadStatus.NEW,
+          lastContact: new Date(),
+          interestedInId: interestId,
+          messages: [],
+          unreadCount: 0,
+          requiresAttention: false
+      };
+      setLeads(prev => [newLead, ...prev]);
+  };
+
   const resolveAttention = (leadId: string) => {
       setLeads(prev => prev.map(l => l.id === leadId ? { ...l, requiresAttention: false } : l));
   };
 
-  // --- SYNC LOGIC: Pipeline <-> Blacklist ---
   const updateLeadStatus = (leadId: string, newStatus: LeadStatus) => {
       const lead = leads.find(l => l.id === leadId);
-      
       setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l));
-
       if (lead) {
           if (newStatus === LeadStatus.NO_AI) {
-              // If moved to NO_AI column, add to blacklist if not already there
               setBlacklist(prev => {
                   if (!prev.includes(lead.phone)) {
                       return [...prev, lead.phone];
@@ -289,8 +269,6 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   return prev;
               });
           } else {
-              // If moved OUT of NO_AI column, optionally remove from blacklist?
-              // Strategy: We remove it from blacklist so AI can work again.
               setBlacklist(prev => prev.filter(phone => phone !== lead.phone));
           }
       }
@@ -300,27 +278,18 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const cleanPhone = phone.trim();
       if (!blacklist.includes(cleanPhone)) {
           setBlacklist(prev => [...prev, cleanPhone]);
-          // Also update any existing lead with this phone to NO_AI status
           setLeads(prev => prev.map(l => l.phone === cleanPhone ? { ...l, status: LeadStatus.NO_AI } : l));
       }
   };
 
   const removeFromBlacklist = (phone: string) => {
       setBlacklist(prev => prev.filter(p => p !== phone));
-      // Optionally move lead back to a generic status? Let's move to NEW or leave as NO_AI to be manually moved.
-      // User likely wants AI to start working, so changing status is helpful.
-      // We'll assume they stay in "NO_AI" until dragged out, OR we move them to "NEW" to signal they are active.
-      // Let's move to NEW to visually confirm re-activation.
       setLeads(prev => prev.map(l => l.phone === phone && l.status === LeadStatus.NO_AI ? { ...l, status: LeadStatus.NEW } : l));
   };
-  // ------------------------------------------
 
   const updateApiKey = (key: string) => {
-      if (key) {
-          localStorage.setItem('crm_gemini_api_key', key);
-      } else {
-          localStorage.removeItem('crm_gemini_api_key');
-      }
+      if (key) localStorage.setItem('crm_gemini_api_key', key);
+      else localStorage.removeItem('crm_gemini_api_key');
       setIsAiReady(isAIConfigured());
   };
 
@@ -334,7 +303,6 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return currentTriggers.some(t => lowerText.includes(t.toLowerCase()));
   };
 
-  // --- EXPORT / IMPORT / CLEAR DATA ---
   const exportData = () => {
       const data = {
           leads,
@@ -350,7 +318,6 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           apiKey: localStorage.getItem('crm_gemini_api_key') || '',
           timestamp: new Date().toISOString()
       };
-      
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -365,13 +332,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const importData = (jsonString: string): boolean => {
       try {
           const data = JSON.parse(jsonString);
-          
-          // Validate basic structure
-          if (!data.leads || !data.properties) {
-              throw new Error("Arquivo inválido");
-          }
-
-          // Restore State
+          if (!data.leads || !data.properties) throw new Error("Arquivo inválido");
           setLeads(data.leads);
           setProperties(data.properties);
           setBlacklist(data.blacklist || []);
@@ -383,7 +344,6 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (data.timerSettings) setTimerSettings(data.timerSettings);
           if (data.voiceSettings) setVoiceSettings(data.voiceSettings);
           if (data.apiKey) updateApiKey(data.apiKey);
-
           return true;
       } catch (e) {
           console.error("Import error:", e);
@@ -391,7 +351,6 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
   };
 
-  // --- PROPERTIES ONLY IMPORT/EXPORT ---
   const exportProperties = () => {
       const blob = new Blob([JSON.stringify(properties, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -408,10 +367,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
           const data = JSON.parse(jsonString);
           if (Array.isArray(data)) {
-              // Basic validation to check if items look like properties
               const isValid = data.every(p => p.id && p.name);
-              if (!isValid) throw new Error("Formato inválido. Esperava-se uma lista de imóveis.");
-              
+              if (!isValid) throw new Error("Formato inválido.");
               setProperties(data);
               return true;
           }
@@ -426,12 +383,9 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.clear();
       window.location.reload();
   };
-  // ------------------------------------
 
   const sendMessage = useCallback(async (text: string, sender: 'user' | 'agent', isMedia = false, mediaUrl?: string, mediaType: 'image' | 'video' | 'audio' = 'image') => {
     if (!selectedLeadId) return;
-
-    // LOGIC FOR HUMAN INTERVENTION (Agent sends message)
     let newPausedUntil: Date | undefined = undefined;
 
     if (sender === 'agent') {
@@ -451,7 +405,6 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       mediaType
     };
 
-    // Update State with User Message immediately
     setLeads(prevLeads => {
       return prevLeads.map(lead => {
         if (lead.id === selectedLeadId) {
@@ -467,49 +420,27 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     });
 
-    // LOGIC FOR USER MESSAGE (Trigger AI)
     if (sender === 'user') {
         const currentLead = leads.find(l => l.id === selectedLeadId);
-        
-        // Check triggers immediately on user message to set alert
         if (currentLead && checkAttentionTriggers(text, 'user')) {
              setLeads(prev => prev.map(l => l.id === selectedLeadId ? { ...l, requiresAttention: true } : l));
         }
-
         if (currentLead) {
-            // --- BLACKLIST / NO_AI CHECK ---
-            if (blacklist.includes(currentLead.phone) || currentLead.status === LeadStatus.NO_AI) {
-                console.log("AI skipped: Phone is blacklisted or status is NO_AI");
-                return;
-            }
-            // -------------------------------
+            if (blacklist.includes(currentLead.phone) || currentLead.status === LeadStatus.NO_AI) return;
+            if (currentLead.aiPausedUntil && new Date() < currentLead.aiPausedUntil) return;
 
-            if (currentLead.aiPausedUntil && new Date() < currentLead.aiPausedUntil) {
-                console.log("AI is paused for this lead until:", currentLead.aiPausedUntil);
-                return;
-            }
-
-            // --- HUMANIZATION LOGIC START ---
-            
-            // 1. Thinking Phase
             if (timerSettings.thinkingTime > 0) {
                 await new Promise(resolve => setTimeout(resolve, timerSettings.thinkingTime * 1000));
             }
-
              const freshLead = leads.find(l => l.id === selectedLeadId); 
              if(!freshLead) return;
-             
              const history = [...freshLead.messages, newMessage];
-
-             // Call API
              const rawResponseText = await generateAIResponse(freshLead, properties, history, systemInstruction);
              
-             // --- AUDIO RESPONSE LOGIC ---
              let audioUrl: string | null = null;
              if (mediaType === 'audio') {
                  setAiActivity('recording');
                  audioUrl = await generateAudioFromText(rawResponseText, voiceSettings.voiceName);
-                 
                  if (audioUrl) {
                      setLeads(prev => prev.map(l => {
                          if (l.id === selectedLeadId) {
@@ -536,10 +467,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
              setAiActivity('idle');
 
-             // --- MEDIA LOGIC FIRST (Images/Video) ---
              let finalText = rawResponseText;
              let mediaToSend: { url: string, type: 'image' | 'video', caption: string } | null = null;
-
              const interestedProp = properties.find(p => p.id === freshLead.interestedInId) || properties[0];
 
              if (interestedProp) {
@@ -557,11 +486,9 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     finalText = rawResponseText.replace('[SEND_VIDEO]', '').trim();
                 }
                 else if (rawResponseText.includes('[SEND_PLAN]')) {
-                    // Check general floorPlans first, then fallback to units
                     if (interestedProp.floorPlans && interestedProp.floorPlans.length > 0) {
                         mediaToSend = { url: interestedProp.floorPlans[0], type: 'image', caption: `📐 Planta Baixa: ${interestedProp.name}` };
                     } else if (interestedProp.units && interestedProp.units.some(u => u.image)) {
-                        // Fallback: Find first unit with a plan
                         const unitWithPlan = interestedProp.units.find(u => u.image);
                         if (unitWithPlan) {
                              mediaToSend = { url: unitWithPlan.image!, type: 'image', caption: `📐 Planta: ${unitWithPlan.name}` };
@@ -571,7 +498,6 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 }
              }
 
-             // Send Media Immediately if exists
              if (mediaToSend) {
                  setLeads(prev => prev.map(l => {
                      if (l.id === selectedLeadId) {
@@ -594,21 +520,12 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                  await new Promise(r => setTimeout(r, 1000));
              }
 
-             // --- TEXT FRACTIONATION LOGIC ---
              const textChunks = finalText.split(/\n+/).filter(chunk => chunk.trim().length > 0);
-             
              let attentionNeeded = false;
-
              for (const chunk of textChunks) {
                 setAiActivity('typing');
-
-                const typingDuration = Math.min(
-                    chunk.length * timerSettings.charDelay, 
-                    timerSettings.maxDelay
-                );
-
+                const typingDuration = Math.min(chunk.length * timerSettings.charDelay, timerSettings.maxDelay);
                 await new Promise(resolve => setTimeout(resolve, typingDuration));
-
                 setLeads(prev => prev.map(l => {
                     if (l.id === selectedLeadId) {
                         return {
@@ -624,11 +541,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     }
                     return l;
                 }));
-
-                if (checkAttentionTriggers(chunk, 'ai')) {
-                    attentionNeeded = true;
-                }
-
+                if (checkAttentionTriggers(chunk, 'ai')) attentionNeeded = true;
                 setAiActivity('idle');
                 await new Promise(resolve => setTimeout(resolve, 600)); 
              }
@@ -638,9 +551,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
              }
 
              const newTemp = await classifyLeadTemperature([...history, { id: 'temp', sender: 'agent', text: finalText, timestamp: new Date() }]);
-             if (newTemp) {
-                setLeads(prev => prev.map(l => l.id === selectedLeadId ? { ...l, status: newTemp } : l));
-             }
+             if (newTemp) setLeads(prev => prev.map(l => l.id === selectedLeadId ? { ...l, status: newTemp } : l));
         }
     }
   }, [selectedLeadId, leads, properties, systemInstruction, userAttentionTriggers, aiAttentionTriggers, aiPauseDuration, timerSettings, voiceSettings, playNotificationSound, blacklist]);
@@ -656,14 +567,12 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const followUpText = await generateFollowUp(lead, properties, followUpConfig);
-    
     const textChunks = followUpText.split(/\n+/).filter(chunk => chunk.trim().length > 0);
 
     for (const chunk of textChunks) {
         setAiActivity('typing');
         const typingDuration = Math.min(chunk.length * timerSettings.charDelay, timerSettings.maxDelay);
         await new Promise(r => setTimeout(r, typingDuration));
-        
         sendMessage(chunk, 'agent'); 
         setAiActivity('idle');
         await new Promise(r => setTimeout(r, 600));
@@ -672,46 +581,12 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   return (
     <CRMContext.Provider value={{
-      currentView,
-      setCurrentView,
-      leads,
-      properties,
-      selectedLeadId,
-      setSelectedLeadId,
-      sendMessage,
-      updateProperty,
-      addProperty,
-      generateAIFollowUp,
-      aiActivity,
-      systemInstruction,
-      setSystemInstruction,
-      whatsappStatus,
-      setWhatsappStatus,
-      resolveAttention,
-      userAttentionTriggers,
-      setUserAttentionTriggers,
-      aiAttentionTriggers,
-      setAiAttentionTriggers,
-      updateLeadStatus,
-      followUpConfig,
-      setFollowUpConfig,
-      resetFollowUpConfig,
-      aiPauseDuration,
-      setAiPauseDuration,
-      timerSettings,
-      setTimerSettings,
-      voiceSettings,
-      setVoiceSettings,
-      blacklist,
-      addToBlacklist,
-      removeFromBlacklist,
-      updateApiKey,
-      isAiReady,
-      exportData,
-      importData,
-      exportProperties,
-      importProperties,
-      clearAllData
+      currentView, setCurrentView, leads, properties, selectedLeadId, setSelectedLeadId, sendMessage, updateProperty, addProperty, addLead,
+      generateAIFollowUp, aiActivity, systemInstruction, setSystemInstruction, whatsappStatus, setWhatsappStatus, resolveAttention,
+      userAttentionTriggers, setUserAttentionTriggers, aiAttentionTriggers, setAiAttentionTriggers, updateLeadStatus,
+      followUpConfig, setFollowUpConfig, resetFollowUpConfig, aiPauseDuration, setAiPauseDuration, timerSettings, setTimerSettings,
+      voiceSettings, setVoiceSettings, blacklist, addToBlacklist, removeFromBlacklist, updateApiKey, isAiReady,
+      exportData, importData, exportProperties, importProperties, clearAllData
     }}>
       {children}
     </CRMContext.Provider>

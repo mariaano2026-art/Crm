@@ -1,12 +1,13 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useCRM } from '../context/CRMContext';
-import { MessageSquare, Key, Server, CheckCircle, AlertCircle, Copy, ExternalLink, Zap, QrCode, Wifi, Eye, EyeOff, Save, Trash2, RefreshCw, Brain } from 'lucide-react';
+import { MessageSquare, Key, Server, CheckCircle, AlertCircle, Copy, ExternalLink, Zap, QrCode, Wifi, Eye, EyeOff, Save, Trash2, RefreshCw, Brain, CloudLightning, FileJson } from 'lucide-react';
 
 const Settings: React.FC = () => {
-  const { whatsappStatus, setWhatsappStatus, updateApiKey, isAiReady } = useCRM();
+  const { whatsappStatus, setWhatsappStatus, updateApiKey, isAiReady, properties, systemInstruction, blacklist } = useCRM();
   
   // Connection Method Toggle
-  const [connectionMethod, setConnectionMethod] = useState<'api' | 'qrcode'>('api');
+  const [connectionMethod, setConnectionMethod] = useState<'api' | 'qrcode' | 'vercel'>('api');
   
   // API Key State
   const [apiKeyInput, setApiKeyInput] = useState('');
@@ -15,6 +16,9 @@ const Settings: React.FC = () => {
   // QR Code State
   const [qrStatus, setQrStatus] = useState<'idle' | 'generating' | 'ready' | 'expired'>('idle');
   
+  // Config Export State
+  const [configJson, setConfigJson] = useState('');
+
   // Mock state for form fields
   const [formData, setFormData] = useState({
     accessToken: '',
@@ -31,6 +35,29 @@ const Settings: React.FC = () => {
           setApiKeyInput(stored);
       }
   }, []);
+
+  const generateConfigJson = () => {
+      const config = {
+          systemInstruction: systemInstruction,
+          properties: properties.map(p => ({
+              id: p.id,
+              name: p.name,
+              address: p.address,
+              price: p.price,
+              status: p.status,
+              specs: p.specs,
+              description: p.description,
+              units: p.units ? p.units.map(u => ({
+                  name: u.name,
+                  price: u.price,
+                  bedrooms: u.bedrooms,
+                  size: u.size
+              })) : []
+          })),
+          blacklist: blacklist
+      };
+      setConfigJson(JSON.stringify(config));
+  };
 
   const handleSaveApiKey = () => {
       updateApiKey(apiKeyInput);
@@ -63,10 +90,9 @@ const Settings: React.FC = () => {
     setQrStatus('generating');
     setTimeout(() => {
         setQrStatus('ready');
-        // Simulate auto-connect after scan (mock behavior)
         setTimeout(() => {
             if (whatsappStatus !== 'connected') {
-                // Just a visual feedback loop, actual connect happens via user action in this demo
+                // Just a visual feedback loop
             }
         }, 5000);
     }, 2000);
@@ -84,17 +110,20 @@ const Settings: React.FC = () => {
 
   const CopyField = ({ label, value }: { label: string, value: string }) => (
     <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">{label}</label>
         <div className="flex">
-            <code className="flex-1 bg-gray-100 border border-gray-200 rounded-l-lg px-3 py-2 text-sm font-mono text-gray-600 overflow-hidden truncate">
+            <code className="flex-1 bg-gray-100 border border-gray-200 rounded-l-lg px-3 py-2 text-xs font-mono text-gray-600 overflow-hidden truncate">
                 {value}
             </code>
             <button 
-                className="bg-gray-200 hover:bg-gray-300 text-gray-600 px-3 py-2 rounded-r-lg border border-l-0 border-gray-200"
-                onClick={() => navigator.clipboard.writeText(value)}
+                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-600 px-3 py-2 rounded-r-lg border border-l-0 border-gray-200 font-bold text-xs"
+                onClick={() => {
+                    navigator.clipboard.writeText(value);
+                    alert("Copiado!");
+                }}
                 title="Copiar"
             >
-                <Copy size={16} />
+                COPIAR
             </button>
         </div>
     </div>
@@ -165,18 +194,25 @@ const Settings: React.FC = () => {
 
                 {/* Connection Config Card */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="border-b border-gray-100">
+                    <div className="border-b border-gray-100 overflow-x-auto">
                         <div className="flex">
                             <button 
                                 onClick={() => setConnectionMethod('api')}
-                                className={`px-6 py-4 text-sm font-medium flex items-center gap-2 transition-colors ${connectionMethod === 'api' ? 'border-b-2 border-emerald-500 text-emerald-700 bg-emerald-50/50' : 'text-gray-500 hover:bg-gray-50'}`}
+                                className={`px-4 md:px-6 py-4 text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${connectionMethod === 'api' ? 'border-b-2 border-emerald-500 text-emerald-700 bg-emerald-50/50' : 'text-gray-500 hover:bg-gray-50'}`}
                             >
                                 <Server size={18} />
                                 API Oficial (Meta)
                             </button>
+                             <button 
+                                onClick={() => setConnectionMethod('vercel')}
+                                className={`px-4 md:px-6 py-4 text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${connectionMethod === 'vercel' ? 'border-b-2 border-emerald-500 text-emerald-700 bg-emerald-50/50' : 'text-gray-500 hover:bg-gray-50'}`}
+                            >
+                                <CloudLightning size={18} />
+                                Integração Vercel (24h)
+                            </button>
                             <button 
                                 onClick={() => setConnectionMethod('qrcode')}
-                                className={`px-6 py-4 text-sm font-medium flex items-center gap-2 transition-colors ${connectionMethod === 'qrcode' ? 'border-b-2 border-emerald-500 text-emerald-700 bg-emerald-50/50' : 'text-gray-500 hover:bg-gray-50'}`}
+                                className={`px-4 md:px-6 py-4 text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${connectionMethod === 'qrcode' ? 'border-b-2 border-emerald-500 text-emerald-700 bg-emerald-50/50' : 'text-gray-500 hover:bg-gray-50'}`}
                             >
                                 <QrCode size={18} />
                                 Conexão QR Code
@@ -185,13 +221,89 @@ const Settings: React.FC = () => {
                     </div>
 
                     <div className="p-6">
-                        {connectionMethod === 'api' ? (
+                         {/* VERCEL 24/7 MODE */}
+                        {connectionMethod === 'vercel' && (
+                            <div className="animate-fadeIn space-y-6">
+                                <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                                    <h4 className="font-bold text-blue-800 text-sm mb-2 flex items-center gap-2">
+                                        <CloudLightning size={16} /> Automação 24h Garantida
+                                    </h4>
+                                    <p className="text-sm text-blue-700 mb-2">
+                                        Para que a IA conheça seus imóveis atualizados e novas regras mesmo quando você fecha o site, precisamos enviar esses dados para o Vercel.
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-6">
+                                    <div>
+                                        <h4 className="font-bold text-gray-800 text-sm mb-3 flex items-center gap-2"><CheckCircle size={16} className="text-emerald-600"/> Passo 1: Configure o Webhook na Meta</h4>
+                                        <CopyField 
+                                            label="Callback URL" 
+                                            value={`https://${window.location.hostname}/api/webhook`} 
+                                        />
+                                        <CopyField 
+                                            label="Verify Token" 
+                                            value="construtoragpt_token_seguro" 
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <h4 className="font-bold text-gray-800 text-sm mb-3 flex items-center gap-2"><CheckCircle size={16} className="text-emerald-600"/> Passo 2: Variáveis Básicas (Vercel)</h4>
+                                        <div className="bg-gray-50 p-3 rounded text-xs font-mono text-gray-600 border border-gray-200 space-y-1">
+                                            <p>API_KEY</p>
+                                            <p>WHATSAPP_ACCESS_TOKEN</p>
+                                            <p>VERIFY_TOKEN</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="border-t border-gray-200 pt-4">
+                                        <h4 className="font-bold text-gray-800 text-sm mb-2 flex items-center gap-2"><FileJson size={16} className="text-emerald-600"/> Passo 3: Sincronizar Dados (CRÍTICO)</h4>
+                                        <p className="text-xs text-gray-500 mb-4">
+                                            Sempre que você alterar imóveis, preços ou prompts, clique no botão abaixo. Ele gerará um código. Copie esse código e atualize a variável <code>CRM_CONFIG_JSON</code> no painel do Vercel.
+                                        </p>
+                                        
+                                        {!configJson ? (
+                                            <button 
+                                                onClick={generateConfigJson}
+                                                className="w-full py-3 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition shadow-sm flex items-center justify-center gap-2"
+                                            >
+                                                <RefreshCw size={16} /> Gerar Código de Sincronização
+                                            </button>
+                                        ) : (
+                                            <div className="animate-fadeIn">
+                                                <label className="block text-xs font-bold text-gray-700 mb-1">Copie TUDO abaixo e cole na variável CRM_CONFIG_JSON no Vercel:</label>
+                                                <textarea 
+                                                    readOnly
+                                                    className="w-full h-32 p-2 bg-gray-800 text-green-400 font-mono text-[10px] rounded border border-gray-700 resize-none focus:outline-none"
+                                                    value={configJson}
+                                                />
+                                                <div className="flex gap-2 mt-2">
+                                                    <button 
+                                                        onClick={() => { navigator.clipboard.writeText(configJson); alert("Código copiado!"); }}
+                                                        className="flex-1 py-2 bg-emerald-600 text-white rounded font-bold text-xs hover:bg-emerald-700 transition"
+                                                    >
+                                                        Copiar Código
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => setConfigJson('')}
+                                                        className="px-4 py-2 bg-gray-200 text-gray-600 rounded font-bold text-xs hover:bg-gray-300 transition"
+                                                    >
+                                                        Fechar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {connectionMethod === 'api' && (
                             <div className="space-y-4 animate-fadeIn">
                                 <div className="mb-4">
                                     <h3 className="font-semibold text-gray-800 flex items-center gap-2">
-                                        Credenciais da Meta
+                                        Credenciais da Meta (Teste Local)
                                     </h3>
-                                    <p className="text-sm text-gray-500 mt-1">Recomendado para grandes volumes e estabilidade máxima.</p>
+                                    <p className="text-sm text-gray-500 mt-1">Use esta aba para testar a conexão enquanto usa o navegador. Para automação 24h, use a aba "Integração Vercel".</p>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Token de Acesso</label>
@@ -249,7 +361,9 @@ const Settings: React.FC = () => {
                                     )}
                                 </div>
                             </div>
-                        ) : (
+                        )}
+                        
+                        {connectionMethod === 'qrcode' && (
                             <div className="animate-fadeIn">
                                 {whatsappStatus === 'connected' ? (
                                      <div className="text-center py-10">
@@ -270,25 +384,21 @@ const Settings: React.FC = () => {
                                         <div className="flex-1 space-y-6">
                                             <div>
                                                 <h3 className="font-semibold text-gray-800 mb-1">Conectar Novo Aparelho</h3>
-                                                <p className="text-sm text-gray-500">Escaneie o QR Code para sincronizar seu WhatsApp Business.</p>
+                                                <p className="text-sm text-gray-500">Esta opção requer que o navegador fique aberto. Para automação 24h, use a opção "Integração Vercel".</p>
                                             </div>
                                             
                                             <ol className="space-y-4">
                                                 <li className="flex items-start gap-3">
                                                     <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 mt-0.5">1</div>
-                                                    <p className="text-sm text-gray-600">Abra o WhatsApp no seu celular.</p>
+                                                    <p className="text-sm text-gray-600">Abra o WhatsApp no celular.</p>
                                                 </li>
                                                 <li className="flex items-start gap-3">
                                                     <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 mt-0.5">2</div>
-                                                    <p className="text-sm text-gray-600">Toque em <strong>Mais opções</strong> (Android) ou <strong>Configurações</strong> (iPhone).</p>
+                                                    <p className="text-sm text-gray-600">Vá em <strong>Aparelhos Conectados</strong> > <strong>Conectar Aparelho</strong>.</p>
                                                 </li>
                                                 <li className="flex items-start gap-3">
                                                     <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 mt-0.5">3</div>
-                                                    <p className="text-sm text-gray-600">Selecione <strong>Aparelhos Conectados</strong> e depois <strong>Conectar Aparelho</strong>.</p>
-                                                </li>
-                                                <li className="flex items-start gap-3">
-                                                    <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 mt-0.5">4</div>
-                                                    <p className="text-sm text-gray-600">Aponte a câmera para o código ao lado.</p>
+                                                    <p className="text-sm text-gray-600">Escaneie o código ao lado.</p>
                                                 </li>
                                             </ol>
                                         </div>
@@ -316,21 +426,16 @@ const Settings: React.FC = () => {
                                             {qrStatus === 'ready' && (
                                                 <div className="flex flex-col items-center">
                                                     <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-200 mb-4 relative group cursor-pointer" onClick={handleSimulateScan}>
-                                                        {/* Using a generic static QR for demo purposes */}
                                                         <img 
                                                             src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=ConstrutoraGPT-Auth-Session" 
                                                             alt="Scan Me" 
                                                             className="w-48 h-48"
                                                         />
-                                                        <div className="absolute inset-0 bg-white/90 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-lg">
-                                                            <span className="text-sm font-bold text-emerald-600">Simular Leitura</span>
-                                                        </div>
                                                     </div>
                                                     <div className="flex items-center gap-2 text-sm text-emerald-600 font-medium animate-pulse">
                                                         <Wifi size={16} />
                                                         Aguardando leitura...
                                                     </div>
-                                                    <p className="text-xs text-gray-400 mt-2">O código expira em 45s</p>
                                                 </div>
                                             )}
                                         </div>
@@ -352,7 +457,7 @@ const Settings: React.FC = () => {
                     </h3>
                     
                     <p className="text-sm text-indigo-800 mb-4 leading-relaxed">
-                        Como não foi detectada uma chave de ambiente (.env), você pode inserir sua chave pessoal aqui. Ela será salva no seu navegador.
+                        Insira sua chave Gemini aqui para usar o CRM no navegador. Para o modo 24h (Vercel), adicione também nas Variáveis de Ambiente.
                     </p>
                     
                     <div className="space-y-3">
@@ -393,10 +498,6 @@ const Settings: React.FC = () => {
                              )}
                          </div>
                     </div>
-
-                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="mt-4 block w-full text-center py-2 text-xs text-indigo-600 hover:underline flex items-center justify-center gap-1">
-                        Obter chave gratuita no Google AI Studio <ExternalLink size={12}/>
-                    </a>
                 </div>
             </div>
 

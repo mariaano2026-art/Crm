@@ -3,8 +3,8 @@ import { GoogleGenAI, Modality } from "@google/genai";
 import { Property, Lead, Message, LeadStatus, FollowUpConfig } from "../types";
 
 const getAIClient = () => {
-  // 1. Tenta pegar do .env
-  let apiKey: string | undefined = process.env.API_KEY;
+  // 1. Tenta pegar do .env. Usamos string vazia como fallback inicial para evitar erro de tipo (TS2322).
+  let apiKey: string = process.env.API_KEY || "";
   
   // 2. Se não tiver no .env, tenta pegar do LocalStorage (configurado via UI)
   if (!apiKey) {
@@ -18,8 +18,8 @@ const getAIClient = () => {
     console.warn("API_KEY is missing. AI features will not work.");
     return null;
   }
-  // TypeScript Fix: Explicitly cast to string as we confirmed it's not null/undefined above
-  return new GoogleGenAI({ apiKey: apiKey as string });
+  
+  return new GoogleGenAI({ apiKey });
 };
 
 export const isAIConfigured = (): boolean => {
