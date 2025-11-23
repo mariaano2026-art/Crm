@@ -303,19 +303,21 @@ const Sandbox: React.FC = () => {
 
                 // 3. Fallback to Main Image if absolutely no plan exists (Better than sending nothing)
                 if (!planUrl) {
-                    planUrl = interestedProp.imageUrl;
-                    caption = "📐 Planta não disponível. Visualização do imóvel:";
+                    planUrl = (interestedProp.images && interestedProp.images.length > 0) ? interestedProp.images[0] : interestedProp.imageUrl;
+                    caption = `⚠️ Planta indisponível. Segue uma imagem ilustrativa do ${interestedProp.name}.`;
                 }
 
-                mediaMessage = {
-                    id: Date.now().toString() + 'media',
-                    sender: 'agent',
-                    text: caption,
-                    timestamp: new Date(),
-                    isMedia: true,
-                    mediaUrl: planUrl!,
-                    mediaType: 'image'
-                };
+                if (planUrl) {
+                     mediaMessage = {
+                        id: Date.now().toString() + 'media',
+                        sender: 'agent',
+                        text: caption,
+                        timestamp: new Date(),
+                        isMedia: true,
+                        mediaUrl: planUrl!,
+                        mediaType: 'image'
+                    };
+                }
                 
                 finalText = rawResponseText.replace(planRegex, '').trim();
             }

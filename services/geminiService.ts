@@ -233,17 +233,17 @@ MÍDIA GERAL DISPONÍVEL: [Fotos: ${hasPhotos}, Vídeo: ${hasVideo}, Planta/Layo
     O sistema identificará a tag e enviará o arquivo separadamente.
     
     1. Se pedir FOTOS/IMAGENS:
-       - Verifique "MÍDIA DISPONÍVEL -> Fotos".
-       - Se SIM: Adicione a tag "[SEND_PHOTO]" em uma linha separada.
+       - Responda algo como "Aqui estão as fotos..." e pule uma linha.
+       - Adicione a tag "[SEND_PHOTO]".
     
     2. Se pedir VÍDEO/TOUR:
-       - Verifique "MÍDIA DISPONÍVEL -> Vídeo".
-       - Se SIM: Adicione a tag "[SEND_VIDEO]" em uma linha separada.
+       - Responda algo como "Veja o vídeo..." e pule uma linha.
+       - Adicione a tag "[SEND_VIDEO]".
     
     3. Se pedir PLANTA/LAYOUT:
-       - Verifique "MÍDIA DISPONÍVEL -> Planta".
-       - Se SIM: Adicione a tag "[SEND_PLAN]" em uma linha separada.
-       - DICA: Se não houver planta geral, mas uma unidade tiver '[PLANTA DISPONÍVEL]', use a tag mesmo assim.
+       - Responda algo como "Segue a planta..." e pule uma linha.
+       - Adicione a tag "[SEND_PLAN]".
+       - IMPORTANTE: Use essa tag se o cliente pedir planta, mesmo que você não tenha certeza se ela existe. O sistema enviará a melhor opção disponível (planta ou foto ilustrativa).
     
     ------------------------------------
 
@@ -256,17 +256,11 @@ MÍDIA GERAL DISPONÍVEL: [Fotos: ${hasPhotos}, Vídeo: ${hasVideo}, Planta/Layo
     --- HISTÓRICO COMPLETO DA CONVERSA ---
     ${chatHistory}
 
-    --- CHECKLIST DE MEMÓRIA (Mentalize isso antes de responder) ---
-    1. O cliente já mencionou o nome dele anteriormente? Se sim, use-o para conectar.
-    2. O cliente já falou sobre tipologia (2 ou 3 quartos) ou orçamento? Se sim, não pergunte de novo, apenas confirme.
-    3. O cliente fez alguma pergunta específica anteriormente que ficou pendente? Responda ela primeiro.
-    4. Existe alguma objeção que ele já citou (ex: "está caro")? Trate isso com empatia.
-    5. O tom do cliente é direto ou mais conversador? Adapte-se.
-
     --- SUA TAREFA ---
     Responda a última mensagem do cliente mantendo o fluxo natural.
     NÃO explique seu raciocínio. Apenas responda como o corretor no WhatsApp.
     Use quebra de linha para separar balões de mensagem se necessário.
+    Se o cliente pediu PLANTA ou FOTO, não esqueça de usar a tag [SEND_PLAN] ou [SEND_PHOTO].
   `;
 
   try {
