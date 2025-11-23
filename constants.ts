@@ -1,5 +1,4 @@
 
-
 import { Lead, LeadStatus, Message, Property, FollowUpConfig, MessageTimerSettings, VoiceSettings } from './types';
 
 export const MOCK_PROPERTIES: Property[] = [

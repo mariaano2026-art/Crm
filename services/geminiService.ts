@@ -1,10 +1,11 @@
-
 import { GoogleGenAI, Modality } from "@google/genai";
 import { Property, Lead, Message, LeadStatus, FollowUpConfig } from "../types";
 
 const getAIClient = () => {
-  // 1. Tenta pegar do .env. Usamos string vazia como fallback inicial para evitar erro de tipo (TS2322).
-  let apiKey: string = process.env.API_KEY || "";
+  // 1. Tenta pegar do .env.
+  // Check explícito de tipo para evitar erro TS2322 no build (string | undefined)
+  const envKey = process.env.API_KEY;
+  let apiKey = typeof envKey === "string" ? envKey : "";
   
   // 2. Se não tiver no .env, tenta pegar do LocalStorage (configurado via UI)
   if (!apiKey) {
@@ -23,7 +24,8 @@ const getAIClient = () => {
 };
 
 export const isAIConfigured = (): boolean => {
-  const apiKey = process.env.API_KEY || localStorage.getItem('crm_gemini_api_key');
+  const envKey = process.env.API_KEY;
+  const apiKey = (typeof envKey === "string" ? envKey : "") || localStorage.getItem('crm_gemini_api_key');
   return !!apiKey;
 };
 
