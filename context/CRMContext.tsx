@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { Lead, Property, Message, View, LeadStatus, FollowUpConfig, MessageTimerSettings, VoiceSettings, QuickReply, Tag, WhatsAppConfig } from '../types';
 import { MOCK_LEADS, MOCK_PROPERTIES, DEFAULT_FOLLOWUP_CONFIG, DEFAULT_TIMER_SETTINGS, VOICE_PRESETS, DEFAULT_TAGS } from '../constants';
 import { generateAIResponse, generateFollowUp, classifyLeadTemperature, generateAudioFromText, isAIConfigured, transcribeAudio } from '../services/geminiService';
-import { sendToWhatsApp } from '../services/whatsappService';
+import { sendToWhatsApp, fetchChats, fetchMessages } from '../services/whatsappService';
 
 export const DEFAULT_SYSTEM_PROMPT = `🚀 PROMPT FINAL – IA CORRETOR HUMANIZADA (VERSÃO DE ALTA CONVERSÃO)
 
@@ -240,13 +240,11 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const intervalRef = useRef<number | null>(null);
   const soundLoopRef = useRef<number | null>(null);
+  const pollingRef = useRef<number | null>(null);
 
+  // --- EFFECT: SAVE TO LOCAL STORAGE ---
   useEffect(() => {
-      try {
-          localStorage.setItem('crm_leads', JSON.stringify(leads));
-      } catch (e) {
-          console.error("Error saving leads", e);
-      }
+      try { localStorage.setItem('crm_leads', JSON.stringify(leads)); } catch (e) { console.error("Error saving leads", e); }
   }, [leads]);
 
   useEffect(() => {
@@ -275,10 +273,12 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => { localStorage.setItem('crm_voice', JSON.stringify(voiceSettings)); }, [voiceSettings]);
   useEffect(() => { localStorage.setItem('crm_ai_pause', aiPauseDuration.toString()); }, [aiPauseDuration]);
 
+  // --- EFFECT: WHATSAPP STATUS & INITIAL SYNC ---
   useEffect(() => {
       if (whatsappConfig.provider === 'uazapi') {
           if (whatsappConfig.uazapiBaseUrl && whatsappConfig.uazapiKey) {
               setWhatsappStatus('connected');
+              syncChats(); // Trigger initial sync
           } else {
               setWhatsappStatus('disconnected');
           }
@@ -290,6 +290,112 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
       }
   }, [whatsappConfig]);
+
+  // --- POLLING: FETCH MESSAGES FOR ACTIVE CHAT ---
+  useEffect(() => {
+      if (whatsappStatus === 'connected' && whatsappConfig.provider === 'uazapi') {
+          // Start polling
+          pollingRef.current = window.setInterval(() => {
+              // 1. Sync active chat messages if open
+              if (selectedLeadId) {
+                  syncMessages(selectedLeadId);
+              }
+              // 2. Sync latest chats to check for new messages (optional, can be heavy)
+              // syncChats(); 
+          }, 15000); // Every 15s
+      } else {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+      }
+      return () => {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+      };
+  }, [whatsappStatus, selectedLeadId]);
+
+  // --- SYNC MESSAGES ON LEAD SELECT ---
+  useEffect(() => {
+      if (selectedLeadId && whatsappStatus === 'connected' && whatsappConfig.provider === 'uazapi') {
+          syncMessages(selectedLeadId);
+      }
+  }, [selectedLeadId]);
+
+  const syncChats = async () => {
+      if (whatsappConfig.provider !== 'uazapi') return;
+      
+      console.log("Syncing chats from Uazapi...");
+      const chats = await fetchChats(whatsappConfig);
+      
+      if (chats && chats.length > 0) {
+          setLeads(prevLeads => {
+              // Create a map of existing leads for quick lookup
+              const leadMap = new Map(prevLeads.map(l => [l.phone, l]));
+              const newLeads = [...prevLeads];
+
+              chats.forEach((chat: any) => {
+                  const phone = chat.id?.split('@')[0]; // Evolution JID format: number@s.whatsapp.net
+                  if (phone && !leadMap.has(phone)) {
+                      // New lead found in WhatsApp history
+                      const name = chat.pushName || chat.name || phone;
+                      const newLead: Lead = {
+                          id: `l_${Date.now()}_${phone}`,
+                          name: name,
+                          phone: phone,
+                          status: LeadStatus.NEW,
+                          lastContact: new Date(chat.conversationTimestamp ? chat.conversationTimestamp * 1000 : Date.now()),
+                          interestedInId: undefined,
+                          messages: [], // Will be fetched when opened
+                          unreadCount: chat.unreadCount || 0,
+                          requiresAttention: false,
+                          tags: [],
+                          archived: false
+                      };
+                      newLeads.push(newLead);
+                  }
+              });
+              
+              // Sort by last contact
+              return newLeads.sort((a, b) => new Date(b.lastContact).getTime() - new Date(a.lastContact).getTime());
+          });
+      }
+  };
+
+  const syncMessages = async (leadId: string) => {
+      const lead = leads.find(l => l.id === leadId);
+      if (!lead || !lead.phone) return;
+
+      const remoteJid = `${lead.phone}@s.whatsapp.net`; // Evolution format
+      console.log(`Syncing messages for ${lead.name} (${remoteJid})...`);
+      
+      const fetchedMessages = await fetchMessages(whatsappConfig, remoteJid, 20); // Get last 20
+      
+      if (fetchedMessages && fetchedMessages.length > 0) {
+          setLeads(prev => prev.map(l => {
+              if (l.id === leadId) {
+                  // Merge logic: simple overwrite/append for now (could be smarter to dedup by ID)
+                  // We'll trust the fetch to return sorted chronologically
+                  
+                  // To avoid duplicates, filter out messages we already have by ID
+                  const existingIds = new Set(l.messages.map(m => m.id));
+                  const newUniqueMessages = fetchedMessages.filter(m => !existingIds.has(m.id));
+                  
+                  if (newUniqueMessages.length === 0) return l;
+
+                  const allMessages = [...l.messages, ...newUniqueMessages].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+                  
+                  // Update last contact based on newest message
+                  const lastMsg = allMessages[allMessages.length - 1];
+                  
+                  return {
+                      ...l,
+                      messages: allMessages,
+                      lastContact: lastMsg ? lastMsg.timestamp : l.lastContact,
+                      // Only update unread if sender is user and it's new
+                      unreadCount: (lastMsg?.sender === 'user' && !existingIds.has(lastMsg.id)) ? l.unreadCount + 1 : l.unreadCount
+                  };
+              }
+              return l;
+          }));
+      }
+  };
 
   useEffect(() => {
     audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
