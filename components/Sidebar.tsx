@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useCRM } from '../context/CRMContext';
-import { LayoutDashboard, Users, MessageSquare, Building2, Settings, LogOut, Brain, FlaskConical, Bell, Kanban, ShieldAlert, Database, X, Tag } from 'lucide-react';
+import { LayoutDashboard, Users, MessageSquare, Building2, Settings, LogOut, Brain, FlaskConical, Bell, Kanban, ShieldAlert, Database, X, Tag, Megaphone } from 'lucide-react';
 import { View } from '../types';
 
 interface SidebarProps {
@@ -78,6 +78,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
         <div className="mb-2">
              <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Operacional</p>
             <NavItem view="chat" icon={MessageSquare} label="Atendimento IA" badge={leadsWithAttention > 0 ? leadsWithAttention : undefined} />
+            <NavItem view="bulk-sender" icon={Megaphone} label="Disparo em Massa" />
             <NavItem view="properties" icon={Building2} label="Imóveis" />
         </div>
 

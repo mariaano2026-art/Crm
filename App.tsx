@@ -12,6 +12,7 @@ import Pipeline from './pages/Pipeline';
 import TagsPipeline from './pages/TagsPipeline';
 import Blacklist from './pages/Blacklist';
 import DataManagement from './pages/DataManagement';
+import BulkSender from './pages/BulkSender';
 import { CRMProvider, useCRM } from './context/CRMContext';
 import { Menu, X } from 'lucide-react';
 
@@ -32,6 +33,7 @@ const MainContent: React.FC = () => {
       case 'sandbox': return <Sandbox />;
       case 'blacklist': return <Blacklist />;
       case 'data-management': return <DataManagement />;
+      case 'bulk-sender': return <BulkSender />;
       default: return <Dashboard />;
     }
   };

@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { Lead, Property, Message, View, LeadStatus, FollowUpConfig, MessageTimerSettings, VoiceSettings, QuickReply, Tag, WhatsAppConfig } from '../types';
+import { Lead, Property, Message, View, LeadStatus, FollowUpConfig, MessageTimerSettings, VoiceSettings, QuickReply, Tag, WhatsAppConfig, BulkCampaign, CampaignLog } from '../types';
 import { MOCK_LEADS, MOCK_PROPERTIES, DEFAULT_FOLLOWUP_CONFIG, DEFAULT_TIMER_SETTINGS, VOICE_PRESETS, DEFAULT_TAGS } from '../constants';
 import { generateAIResponse, generateFollowUp, classifyLeadTemperature, generateAudioFromText, isAIConfigured, transcribeAudio } from '../services/geminiService';
 import { sendToWhatsApp, fetchChats, fetchMessages } from '../services/whatsappService';
@@ -137,6 +137,13 @@ interface CRMContextType {
   deleteLead: (leadId: string) => void;
   archiveLead: (leadId: string) => void;
   unarchiveLead: (leadId: string) => void;
+
+  // Bulk Sender
+  bulkCampaign: BulkCampaign | null;
+  initBulkCampaign: (leads: Lead[], message: string, config: { minDelay: number, maxDelay: number }) => void;
+  startBulkCampaign: () => void;
+  pauseBulkCampaign: () => void;
+  stopBulkCampaign: () => void;
 }
 
 const CRMContext = createContext<CRMContextType | undefined>(undefined);
@@ -237,10 +244,19 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return saved ? JSON.parse(saved) : VOICE_PRESETS[2];
   });
 
+  // Bulk Sender State
+  const [bulkCampaign, setBulkCampaign] = useState<BulkCampaign | null>(() => {
+      try {
+          const saved = localStorage.getItem('crm_bulk_campaign');
+          return saved ? JSON.parse(saved) : null;
+      } catch (e) { return null; }
+  });
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const intervalRef = useRef<number | null>(null);
   const soundLoopRef = useRef<number | null>(null);
   const pollingRef = useRef<number | null>(null);
+  const bulkTimerRef = useRef<number | null>(null);
 
   // --- EFFECT: SAVE TO LOCAL STORAGE ---
   useEffect(() => {
@@ -272,6 +288,137 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => { localStorage.setItem('crm_timers', JSON.stringify(timerSettings)); }, [timerSettings]);
   useEffect(() => { localStorage.setItem('crm_voice', JSON.stringify(voiceSettings)); }, [voiceSettings]);
   useEffect(() => { localStorage.setItem('crm_ai_pause', aiPauseDuration.toString()); }, [aiPauseDuration]);
+  useEffect(() => { localStorage.setItem('crm_bulk_campaign', JSON.stringify(bulkCampaign)); }, [bulkCampaign]);
+
+  // --- BULK SENDER ENGINE ---
+  useEffect(() => {
+      if (bulkCampaign && bulkCampaign.status === 'running') {
+          if (!bulkTimerRef.current) {
+              const processQueue = async () => {
+                  // If queue is empty, complete campaign
+                  if (bulkCampaign.queue.length === 0) {
+                      setBulkCampaign(prev => prev ? { ...prev, status: 'completed', nextRunTime: undefined } : null);
+                      return;
+                  }
+
+                  // Get next lead
+                  const nextLead = bulkCampaign.queue[0];
+                  const remainingQueue = bulkCampaign.queue.slice(1);
+
+                  // Calculate random delay
+                  const { minDelay, maxDelay } = bulkCampaign.config;
+                  const randomDelay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay) * 1000;
+                  const nextRun = Date.now() + randomDelay;
+
+                  // Schedule next run in state for UI countdown
+                  setBulkCampaign(prev => prev ? { ...prev, nextRunTime: nextRun } : null);
+
+                  // Wait for delay
+                  bulkTimerRef.current = window.setTimeout(async () => {
+                      // Process Message
+                      const text = bulkCampaign.messageTemplate.replace(/{nome}/gi, nextLead.name.split(' ')[0]); // Use First Name
+                      
+                      let success = false;
+                      let errorMsg = '';
+
+                      try {
+                          // Send to real WhatsApp if configured
+                          if (whatsappConfig.provider === 'meta' || whatsappConfig.provider === 'uazapi') {
+                              success = await sendToWhatsApp(whatsappConfig, nextLead.phone, 'text', text);
+                              if (!success) errorMsg = "Falha na API";
+                          } else {
+                              // Simulate success in mock mode
+                              success = true; 
+                              await new Promise(r => setTimeout(r, 500));
+                          }
+                      } catch (e: any) {
+                          errorMsg = e.message;
+                      }
+
+                      // Log result
+                      const log: CampaignLog = {
+                          leadId: nextLead.id,
+                          leadName: nextLead.name,
+                          phone: nextLead.phone,
+                          status: success ? 'sent' : 'failed',
+                          timestamp: new Date(),
+                          error: errorMsg
+                      };
+
+                      // Add message to lead history in CRM
+                      if (success) {
+                          const newMessage: Message = {
+                              id: Date.now().toString(),
+                              sender: 'agent',
+                              text: text,
+                              timestamp: new Date()
+                          };
+                          setLeads(prev => prev.map(l => l.id === nextLead.id ? { 
+                              ...l, 
+                              messages: [...l.messages, newMessage],
+                              lastContact: new Date()
+                          } : l));
+                      }
+
+                      // Update Campaign State
+                      setBulkCampaign(prev => {
+                          if (!prev) return null;
+                          return {
+                              ...prev,
+                              queue: remainingQueue,
+                              processedCount: prev.processedCount + 1,
+                              logs: [log, ...prev.logs],
+                              nextRunTime: undefined // Reset timer UI until next scheduling
+                          };
+                      });
+
+                      // Clear timer ref to allow next loop iteration
+                      bulkTimerRef.current = null;
+
+                  }, randomDelay);
+              };
+
+              processQueue();
+          }
+      } else {
+          // Cleanup timer if paused or stopped
+          if (bulkTimerRef.current) {
+              clearTimeout(bulkTimerRef.current);
+              bulkTimerRef.current = null;
+          }
+      }
+
+      return () => {
+          if (bulkTimerRef.current) {
+              clearTimeout(bulkTimerRef.current);
+              bulkTimerRef.current = null;
+          }
+      };
+  }, [bulkCampaign?.status, bulkCampaign?.queue.length]); // Dependency on status and queue length trigger loop
+
+  const initBulkCampaign = (targetLeads: Lead[], message: string, config: { minDelay: number, maxDelay: number }) => {
+      setBulkCampaign({
+          status: 'idle',
+          queue: targetLeads,
+          totalCount: targetLeads.length,
+          processedCount: 0,
+          messageTemplate: message,
+          logs: [],
+          config
+      });
+  };
+
+  const startBulkCampaign = () => {
+      setBulkCampaign(prev => prev ? { ...prev, status: 'running' } : null);
+  };
+
+  const pauseBulkCampaign = () => {
+      setBulkCampaign(prev => prev ? { ...prev, status: 'paused' } : null);
+  };
+
+  const stopBulkCampaign = () => {
+      setBulkCampaign(null);
+  };
 
   // --- EFFECT: WHATSAPP STATUS & INITIAL SYNC ---
   useEffect(() => {
@@ -591,6 +738,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           leads, properties, blacklist, quickReplies, tags, whatsappConfig, systemInstruction,
           userAttentionTriggers, aiAttentionTriggers, followUpConfig, aiPauseDuration, timerSettings, voiceSettings,
           apiKey: localStorage.getItem('crm_gemini_api_key') || '',
+          bulkCampaign,
           timestamp: new Date().toISOString()
       };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -1017,7 +1165,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       exportData, importData, exportProperties, importProperties, clearAllData,
       tags, addTag, removeTag, assignTagToLead, removeTagFromLead,
       clearChat, deleteLead, archiveLead, unarchiveLead,
-      whatsappConfig, setWhatsappConfig
+      whatsappConfig, setWhatsappConfig,
+      bulkCampaign, initBulkCampaign, startBulkCampaign, pauseBulkCampaign, stopBulkCampaign
     }}>
       {children}
     </CRMContext.Provider>

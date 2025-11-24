@@ -115,4 +115,27 @@ export interface VoiceSettings {
   gender: 'male' | 'female';
 }
 
-export type View = 'dashboard' | 'leads' | 'pipeline' | 'tags-pipeline' | 'chat' | 'properties' | 'settings' | 'training' | 'sandbox' | 'blacklist' | 'data-management';
+export interface CampaignLog {
+  leadId: string;
+  leadName: string;
+  phone: string;
+  status: 'pending' | 'sent' | 'failed';
+  timestamp?: Date;
+  error?: string;
+}
+
+export interface BulkCampaign {
+  status: 'idle' | 'running' | 'paused' | 'completed';
+  queue: Lead[]; // Leads yet to be processed
+  processedCount: number;
+  totalCount: number;
+  messageTemplate: string;
+  logs: CampaignLog[];
+  nextRunTime?: number; // Timestamp for next run
+  config: {
+    minDelay: number; // seconds
+    maxDelay: number; // seconds
+  };
+}
+
+export type View = 'dashboard' | 'leads' | 'pipeline' | 'tags-pipeline' | 'chat' | 'properties' | 'settings' | 'training' | 'sandbox' | 'blacklist' | 'data-management' | 'bulk-sender';
