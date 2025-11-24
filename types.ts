@@ -15,9 +15,15 @@ export interface Tag {
 }
 
 export interface WhatsAppConfig {
-  accessToken: string;
-  phoneNumberId: string;
-  wabaId: string;
+  provider: 'meta' | 'uazapi'; // Seletor de provedor
+  // Meta (Oficial)
+  accessToken?: string;
+  phoneNumberId?: string;
+  wabaId?: string;
+  // Uazapi (Não Oficial)
+  uazapiBaseUrl?: string;
+  uazapiKey?: string;
+  uazapiInstance?: string;
 }
 
 export interface PropertyUnit {

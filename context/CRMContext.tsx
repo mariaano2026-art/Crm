@@ -145,13 +145,11 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentView, setCurrentView] = useState<View>('dashboard');
   
   // --- PERSISTENCE LOGIC START ---
-  // Load initial state from LocalStorage or fallback to Mocks
   const [leads, setLeads] = useState<Lead[]>(() => {
       try {
           const saved = localStorage.getItem('crm_leads');
           return saved ? JSON.parse(saved) : MOCK_LEADS;
       } catch (e) {
-          console.error("Failed to load leads from storage", e);
           return MOCK_LEADS;
       }
   });
@@ -161,12 +159,10 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const saved = localStorage.getItem('crm_properties');
           return saved ? JSON.parse(saved) : MOCK_PROPERTIES;
       } catch (e) {
-          console.error("Failed to load properties from storage", e);
           return MOCK_PROPERTIES;
       }
   });
 
-  // Blacklist State
   const [blacklist, setBlacklist] = useState<string[]>(() => {
       try {
           const saved = localStorage.getItem('crm_blacklist');
@@ -176,7 +172,6 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
   });
 
-  // Quick Replies State
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>(() => {
       try {
           const saved = localStorage.getItem('crm_quick_replies');
@@ -186,7 +181,6 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
   });
 
-  // Tags State
   const [tags, setTags] = useState<Tag[]>(() => {
       try {
           const saved = localStorage.getItem('crm_tags');
@@ -196,13 +190,12 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
   });
 
-  // WhatsApp Config State
   const [whatsappConfig, setWhatsappConfig] = useState<WhatsAppConfig>(() => {
       try {
           const saved = localStorage.getItem('crm_whatsapp_config');
-          return saved ? JSON.parse(saved) : { accessToken: '', phoneNumberId: '', wabaId: '' };
+          return saved ? JSON.parse(saved) : { provider: 'meta', accessToken: '', phoneNumberId: '', wabaId: '', uazapiBaseUrl: '', uazapiKey: '', uazapiInstance: '' };
       } catch (e) {
-          return { accessToken: '', phoneNumberId: '', wabaId: '' };
+          return { provider: 'meta' };
       }
   });
   // --- PERSISTENCE LOGIC END ---
@@ -210,26 +203,18 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [aiActivity, setAiActivity] = useState<AIActivityStatus>('idle');
 
-  // Load Settings from storage or default
   const [systemInstruction, setSystemInstruction] = useState(() => localStorage.getItem('crm_system_instruction') || DEFAULT_SYSTEM_PROMPT);
   const [whatsappStatus, setWhatsappStatus] = useState<'connected' | 'disconnected'>('disconnected');
   const [isAiReady, setIsAiReady] = useState<boolean>(isAIConfigured());
   
   const [userAttentionTriggers, setUserAttentionTriggers] = useState<string[]>(() => {
       const saved = localStorage.getItem('crm_user_triggers');
-      return saved ? JSON.parse(saved) : [
-        'humano', 'atendente', 'pessoa', 'falar com alguém', 
-        'ligação', 'me liga', 'ligar', 
-        'visita', 'agendar', 'marcar',
-        'não sei', 'não consigo', 'ajuda', 'acionar corretor humano'
-      ];
+      return saved ? JSON.parse(saved) : ['humano', 'atendente', 'pessoa', 'falar com alguém', 'ligação', 'me liga', 'ligar', 'visita', 'agendar', 'marcar', 'não sei', 'não consigo', 'ajuda', 'acionar corretor humano'];
   });
   
   const [aiAttentionTriggers, setAiAttentionTriggers] = useState<string[]>(() => {
       const saved = localStorage.getItem('crm_ai_triggers');
-      return saved ? JSON.parse(saved) : [
-        'vou chamar', 'transferir', 'um momento', 'não tenho essa informação', 'agendada', 'visita confirmada', 'acionar corretor humano'
-      ];
+      return saved ? JSON.parse(saved) : ['vou chamar', 'transferir', 'um momento', 'não tenho essa informação', 'agendada', 'visita confirmada', 'acionar corretor humano'];
   });
 
   const [followUpConfig, setFollowUpConfig] = useState<FollowUpConfig>(() => {
@@ -249,19 +234,18 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(() => {
       const saved = localStorage.getItem('crm_voice');
-      return saved ? JSON.parse(saved) : VOICE_PRESETS[2]; // Default to Kore (Female/Calm)
+      return saved ? JSON.parse(saved) : VOICE_PRESETS[2];
   });
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const intervalRef = useRef<number | null>(null);
   const soundLoopRef = useRef<number | null>(null);
 
-  // --- SAVE TO LOCAL STORAGE EFFECTS ---
   useEffect(() => {
       try {
           localStorage.setItem('crm_leads', JSON.stringify(leads));
       } catch (e) {
-          console.error("Error saving leads to localStorage (Quota exceeded?)", e);
+          console.error("Error saving leads", e);
       }
   }, [leads]);
 
@@ -271,12 +255,11 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           localStorage.setItem('crm_properties', json);
       } catch (e: any) {
           if (e.name === 'QuotaExceededError' || e.toString().includes('Quota')) {
-              alert("⛔ LIMITE DE ARMAZENAMENTO ATINGIDO\n\nO navegador não tem mais espaço para salvar novos dados. A última alteração foi desfeita para garantir que você não perca informações ao atualizar a página.\n\nDica: Remova imóveis antigos ou use imagens menores/comprimidas.");
+              alert("⛔ LIMITE DE ARMAZENAMENTO ATINGIDO\n\nO navegador não tem mais espaço para salvar novos dados.");
               const saved = localStorage.getItem('crm_properties');
               if (saved) setProperties(JSON.parse(saved));
               else setProperties(MOCK_PROPERTIES);
           }
-          console.error("Error saving properties to localStorage", e);
       }
   }, [properties]);
 
@@ -292,12 +275,19 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => { localStorage.setItem('crm_voice', JSON.stringify(voiceSettings)); }, [voiceSettings]);
   useEffect(() => { localStorage.setItem('crm_ai_pause', aiPauseDuration.toString()); }, [aiPauseDuration]);
 
-  // Sync WhatsApp Connection Status based on tokens
   useEffect(() => {
-      if (whatsappConfig.accessToken && whatsappConfig.phoneNumberId) {
-          setWhatsappStatus('connected');
+      if (whatsappConfig.provider === 'uazapi') {
+          if (whatsappConfig.uazapiBaseUrl && whatsappConfig.uazapiKey) {
+              setWhatsappStatus('connected');
+          } else {
+              setWhatsappStatus('disconnected');
+          }
       } else {
-          setWhatsappStatus('disconnected');
+          if (whatsappConfig.accessToken && whatsappConfig.phoneNumberId) {
+              setWhatsappStatus('connected');
+          } else {
+              setWhatsappStatus('disconnected');
+          }
       }
   }, [whatsappConfig]);
 
@@ -416,13 +406,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setFollowUpConfig(DEFAULT_FOLLOWUP_CONFIG);
   };
 
-  // --- TAG MANAGEMENT FUNCTIONS (REAL WHATSAPP SYNC) ---
   const syncTagToWhatsApp = async (tag: Tag) => {
-      // Stub function: This would effectively call the Meta API to create a Label
-      if (whatsappConfig.accessToken && whatsappConfig.phoneNumberId) {
-          console.log(`[REAL SYNC] Creating/Updating Label on WhatsApp: ${tag.name}`);
-          // const response = await fetch(`https://graph.facebook.com/v18.0/${whatsappConfig.phoneNumberId}/...`);
-      }
+      // Placeholder for tag sync logic
   };
 
   const addTag = (name: string, color: string) => {
@@ -433,7 +418,6 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const removeTag = (id: string) => {
       setTags(prev => prev.filter(t => t.id !== id));
-      // Clean up deleted tag from leads
       setLeads(prev => prev.map(l => ({
           ...l,
           tags: l.tags?.filter(tId => tId !== id)
@@ -445,10 +429,6 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (l.id === leadId) {
               const currentTags = l.tags || [];
               if (!currentTags.includes(tagId)) {
-                  // Stub: Sync user label to WhatsApp
-                  if (whatsappConfig.accessToken) {
-                      console.log(`[REAL SYNC] Assigning Label ${tagId} to User ${l.phone}`);
-                  }
                   return { ...l, tags: [...currentTags, tagId] };
               }
           }
@@ -459,17 +439,12 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const removeTagFromLead = (leadId: string, tagId: string) => {
       setLeads(prev => prev.map(l => {
           if (l.id === leadId) {
-              // Stub: Remove user label from WhatsApp
-              if (whatsappConfig.accessToken) {
-                  console.log(`[REAL SYNC] Removing Label ${tagId} from User ${l.phone}`);
-              }
               return { ...l, tags: l.tags?.filter(t => t !== tagId) || [] };
           }
           return l;
       }));
   };
 
-  // --- CHAT ACTIONS ---
   const clearChat = (leadId: string) => {
       if(confirm("Tem certeza que deseja apagar todas as mensagens desta conversa?")) {
         setLeads(prev => prev.map(l => l.id === leadId ? { ...l, messages: [] } : l));
@@ -502,25 +477,13 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const detectPropertyFromContext = (text: string): Property | undefined => {
       const lower = text.toLowerCase();
-      // Simple logic: check if property name is inside the text
       return properties.find(p => lower.includes(p.name.toLowerCase()));
   };
 
   const exportData = () => {
       const data = {
-          leads,
-          properties,
-          blacklist,
-          quickReplies,
-          tags,
-          whatsappConfig,
-          systemInstruction,
-          userAttentionTriggers,
-          aiAttentionTriggers,
-          followUpConfig,
-          aiPauseDuration,
-          timerSettings,
-          voiceSettings,
+          leads, properties, blacklist, quickReplies, tags, whatsappConfig, systemInstruction,
+          userAttentionTriggers, aiAttentionTriggers, followUpConfig, aiPauseDuration, timerSettings, voiceSettings,
           apiKey: localStorage.getItem('crm_gemini_api_key') || '',
           timestamp: new Date().toISOString()
       };
@@ -576,8 +539,6 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
           const data = JSON.parse(jsonString);
           if (Array.isArray(data)) {
-              const isValid = data.every(p => p.id && p.name);
-              if (!isValid) throw new Error("Formato inválido.");
               setProperties(data);
               return true;
           }
@@ -607,16 +568,11 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         // --- REAL WHATSAPP SENDING LOGIC ---
-        // Se a mensagem for do Agente (ou IA), tentamos enviar para a API da Meta
-        // Se for user, assumimos que veio do webhook ou é simulação, não reenviamos.
+        const isMeta = whatsappConfig.provider === 'meta' && whatsappConfig.accessToken && whatsappConfig.phoneNumberId;
+        const isUazapi = whatsappConfig.provider === 'uazapi' && whatsappConfig.uazapiBaseUrl && whatsappConfig.uazapiKey;
         
-        const isRealConnection = whatsappConfig.accessToken && whatsappConfig.phoneNumberId;
-        
-        if (isRealConnection) {
-             // Formata o tipo para o serviço
+        if (isMeta || isUazapi) {
              const contentType = isMedia ? mediaType : 'text';
-             
-             // Envia em background (fire and forget para não travar a UI, mas logar erro se falhar)
              sendToWhatsApp(whatsappConfig, currentLead.phone, contentType, isMedia ? (mediaUrl || '') : text)
                 .then(success => {
                     if(!success) console.error("Falha ao enviar mensagem para WhatsApp API");
@@ -634,7 +590,6 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       mediaType
     };
 
-    // Atualiza estado com a nova mensagem
     setLeads(prevLeads => {
       return prevLeads.map(lead => {
         if (lead.id === selectedLeadId) {
@@ -644,7 +599,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             lastContact: new Date(),
             unreadCount: sender === 'agent' ? 0 : lead.unreadCount + 1,
             aiPausedUntil: sender === 'agent' ? newPausedUntil : lead.aiPausedUntil,
-            archived: false // Sempre desarquiva se chegar mensagem nova
+            archived: false
           };
         }
         return lead;
@@ -665,7 +620,6 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
              const freshLead = leads.find(l => l.id === selectedLeadId); 
              if(!freshLead) return;
 
-             // --- LÓGICA DE TRANSCRIÇÃO E CONTEXTO DE ÁUDIO ---
              let contextText = text;
              
              if (mediaType === 'audio' && mediaUrl) {
@@ -829,8 +783,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                      return l;
                  }));
                  
-                 // Envia mídia para o WhatsApp Real
-                 if(whatsappConfig.accessToken) {
+                 if(whatsappConfig.accessToken || whatsappConfig.uazapiKey) {
                      sendToWhatsApp(whatsappConfig, freshLead.phone, mediaToSend!.type, mediaToSend!.url, mediaToSend!.caption);
                  }
 
@@ -865,15 +818,10 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                          return l;
                      }));
                      
-                     // Envia áudio para o WhatsApp Real
-                     if(whatsappConfig.accessToken) {
-                         // Nota: A API do WhatsApp para áudio requer um link público ou ID de mídia. 
-                         // Como audioUrl é um Blob local, isso NÃO funcionará diretamente sem upload.
-                         // Para este demo, enviamos o texto transcrito como fallback se for blob.
+                     if(whatsappConfig.accessToken || whatsappConfig.uazapiKey) {
                          if(audioUrl.startsWith('http')) {
                             sendToWhatsApp(whatsappConfig, freshLead.phone, 'audio', audioUrl);
                          } else {
-                             // Fallback: Envia texto pois não temos servidor de upload de mídia aqui
                              sendToWhatsApp(whatsappConfig, freshLead.phone, 'text', `[Áudio Gerado pela IA]: ${finalText}`);
                          }
                      }
@@ -909,8 +857,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         return l;
                     }));
 
-                    // Envia texto chunk para WhatsApp Real
-                    if(whatsappConfig.accessToken) {
+                    if(whatsappConfig.accessToken || whatsappConfig.uazapiKey) {
                         sendToWhatsApp(whatsappConfig, freshLead.phone, 'text', chunk.trim());
                     }
 
@@ -962,11 +909,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       quickReplies, setQuickReplies,
       updateApiKey, isAiReady,
       exportData, importData, exportProperties, importProperties, clearAllData,
-      // TAGS
       tags, addTag, removeTag, assignTagToLead, removeTagFromLead,
-      // CHAT ACTIONS
       clearChat, deleteLead, archiveLead, unarchiveLead,
-      // WHATSAPP CONFIG
       whatsappConfig, setWhatsappConfig
     }}>
       {children}

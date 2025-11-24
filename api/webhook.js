@@ -5,20 +5,19 @@ import { GoogleGenAI } from "@google/genai";
 const genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export default async function handler(req, res) {
-  // 1. VERIFICAÇÃO DO WEBHOOK (GET)
+  
+  // 1. VERIFICAÇÃO DO WEBHOOK (Meta Style - GET)
   if (req.method === 'GET') {
     const mode = req.query['hub.mode'];
     const token = req.query['hub.verify_token'];
     const challenge = req.query['hub.challenge'];
-
-    // O token de verificação deve ser igual ao que você definir no painel do Vercel
     const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "construtoragpt_token_seguro";
 
     if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-      console.log("Webhook verificado com sucesso!");
       return res.status(200).send(challenge);
     } else {
-      return res.status(403).json({ error: "Token de verificação inválido" });
+      // Uazapi não usa validação GET geralmente, mas deixamos fallback
+      return res.status(403).json({ error: "Token inválido" });
     }
   }
 
@@ -26,131 +25,145 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     try {
       const body = req.body;
+      let messageData = null;
+      let provider = 'meta';
 
-      // Verifica se é uma mensagem do WhatsApp
+      // --- DETECTAR SE É META OU UAZAPI/EVOLUTION ---
+      
+      // Caso 1: Meta (Official API)
       if (body.object === 'whatsapp_business_account') {
-        const entry = body.entry?.[0];
-        const changes = entry?.changes?.[0];
-        const value = changes?.value;
-        const message = value?.messages?.[0];
+          const entry = body.entry?.[0];
+          const changes = entry?.changes?.[0];
+          const value = changes?.value;
+          const message = value?.messages?.[0];
+          
+          if (message && message.type === 'text') {
+              messageData = {
+                  from: message.from,
+                  text: message.text.body,
+                  phoneId: value.metadata.phone_number_id
+              };
+              provider = 'meta';
+          }
+      } 
+      
+      // Caso 2: Uazapi / Evolution API (Payload geralmente tem 'data' ou 'message')
+      else if (body.data && body.data.key && body.data.key.remoteJid) {
+          // Estrutura comum Evolution v1/v2
+          const msg = body.data;
+          // Ignorar mensagens enviadas por mim (fromMe)
+          if (!msg.key.fromMe && msg.message) {
+              // Extrair texto (pode vir em conversation, extendedTextMessage, etc)
+              let text = msg.message.conversation || msg.message.extendedTextMessage?.text || "";
+              const remoteJid = msg.key.remoteJid;
+              const from = remoteJid.split('@')[0];
 
-        if (message && message.type === 'text') {
-          const from = message.from; // Número do cliente
-          const textBody = message.text.body; // Texto da mensagem
-          const businessPhoneNumberId = value.metadata.phone_number_id;
+              if (text) {
+                  messageData = {
+                      from: from,
+                      text: text,
+                      instance: body.instance || process.env.UAZAPI_INSTANCE
+                  };
+                  provider = 'uazapi';
+              }
+          }
+      }
 
-          console.log(`Mensagem recebida de ${from}: ${textBody}`);
+      // SE TIVER MENSAGEM VÁLIDA PARA PROCESSAR
+      if (messageData) {
+          console.log(`[${provider}] Mensagem de ${messageData.from}: ${messageData.text}`);
 
-          // --- CARREGAMENTO DE CONFIGURAÇÃO PERSISTENTE ---
+          // --- CONFIGURAÇÃO DINÂMICA (JSON) ---
           let crmConfig = {
-            systemInstruction: "Você é um corretor de imóveis virtual. Seja breve e tente agendar uma visita.",
+            systemInstruction: "Você é um corretor. Agende uma visita.",
             properties: [],
             blacklist: []
           };
 
-          // Tenta ler a configuração injetada via Variável de Ambiente (CRM_CONFIG_JSON)
           if (process.env.CRM_CONFIG_JSON) {
             try {
               const parsed = JSON.parse(process.env.CRM_CONFIG_JSON);
               crmConfig = { ...crmConfig, ...parsed };
-              console.log("Configuração personalizada carregada com sucesso.");
-            } catch (e) {
-              console.error("Erro ao ler CRM_CONFIG_JSON:", e);
-            }
+            } catch (e) { console.error("Erro config JSON", e); }
           }
 
-          // 1. Verifica Blacklist
-          if (crmConfig.blacklist && crmConfig.blacklist.some(num => from.includes(num) || num.includes(from))) {
-             console.log(`Número ${from} está na blacklist. Ignorando.`);
+          // Blacklist Check
+          if (crmConfig.blacklist && crmConfig.blacklist.some(num => messageData.from.includes(num))) {
              return res.status(200).send('BLACKLISTED');
           }
 
-          // 2. Monta o Contexto dos Imóveis (Mesma lógica do Frontend)
+          // Contexto dos Imóveis
           const propertyContext = crmConfig.properties.map(p => {
              let unitDetails = "";
              if (p.units && p.units.length > 0) {
-                 unitDetails = "\n  TIPOLOGIAS/PLANTAS:\n" + p.units.map(u => 
-                     `  - ${u.name}: R$ ${u.price} (${u.bedrooms} quartos, ${u.size}).`
-                 ).join('\n');
+                 unitDetails = "\n  TIPOLOGIAS:\n" + p.units.map(u => `  - ${u.name}: R$ ${u.price}`).join('\n');
              }
-             return `IMÓVEL: ${p.name}\nEndereço: ${p.address}\nPreço: R$${p.price}\nStatus: ${p.status}\nSpecs: ${p.specs}\nDescrição: ${p.description}${unitDetails}\n-------------------`;
+             return `IMÓVEL: ${p.name}\nEndereço: ${p.address}\nPreço: R$${p.price}\n${unitDetails}\n---`;
           }).join('\n');
 
-          // 3. Monta o Prompt Completo
+          // Prompt
           const fullSystemInstruction = `
             ${crmConfig.systemInstruction}
-
-            --- INVENTÁRIO DE IMÓVEIS ATUALIZADO ---
-            ${propertyContext || "Nenhum imóvel cadastrado no momento."}
-            
-            --- INSTRUÇÕES EXTRAS ---
-            1. Se o cliente perguntar de um imóvel que está na lista acima, use os dados fornecidos.
-            2. Se perguntar o preço, seja exato conforme a lista.
-            3. Responda de forma curta e humanizada (estilo WhatsApp).
+            --- INVENTÁRIO ---
+            ${propertyContext}
           `;
 
-          // Chama o Gemini
+          // AI Generation
           const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-          
-          const prompt = `
-            HISTÓRICO RECENTE: (Sem histórico persistente nesta versão serverless)
-            CLIENTE: "${textBody}"
-            
-            Responda como o corretor:
-          `;
-
           const result = await model.generateContent({
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            contents: [{ role: 'user', parts: [{ text: `Cliente: "${messageData.text}"` }] }],
             systemInstruction: { parts: [{ text: fullSystemInstruction }] }
           });
-          
           const aiResponse = result.response.text();
 
-          // --- ENVIA RESPOSTA PARA O WHATSAPP ---
-          await sendWhatsAppMessage(businessPhoneNumberId, from, aiResponse);
-        }
-
-        return res.status(200).send('EVENT_RECEIVED');
-      } else {
-        return res.status(404).send('Not a WhatsApp API event');
+          // --- ENVIAR RESPOSTA ---
+          if (provider === 'meta') {
+              await sendMetaMessage(messageData.phoneId, messageData.from, aiResponse);
+          } else if (provider === 'uazapi') {
+              await sendUazapiMessage(messageData.from, aiResponse);
+          }
       }
+
+      return res.status(200).send('OK');
+
     } catch (error) {
-      console.error("Erro no webhook:", error);
-      return res.status(500).send("Internal Server Error");
+      console.error("Erro webhook:", error);
+      return res.status(500).send("Error");
     }
   }
-
   return res.status(405).send("Method Not Allowed");
 }
 
-// Função auxiliar para chamar a API da Meta
-async function sendWhatsAppMessage(phoneId, to, text) {
+async function sendMetaMessage(phoneId, to, text) {
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
-  
-  if (!token) {
-    console.error("ERRO: WHATSAPP_ACCESS_TOKEN não configurado no Vercel.");
-    return;
-  }
-
-  const url = `https://graph.facebook.com/v18.0/${phoneId}/messages`;
-  
-  const response = await fetch(url, {
+  if (!token) return;
+  await fetch(`https://graph.facebook.com/v18.0/${phoneId}/messages`, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to: to,
-      text: { body: text }
-    })
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messaging_product: "whatsapp", to: to, text: { body: text } })
   });
+}
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    console.error("Erro ao enviar mensagem WhatsApp:", JSON.stringify(errorData, null, 2));
-  } else {
-    console.log(`Resposta enviada para ${to}`);
-  }
+async function sendUazapiMessage(to, text) {
+    const baseUrl = process.env.UAZAPI_URL;
+    const apiKey = process.env.UAZAPI_KEY;
+    const instance = process.env.UAZAPI_INSTANCE;
+
+    if (!baseUrl || !apiKey || !instance) {
+        console.error("Faltam variáveis UAZAPI no Vercel");
+        return;
+    }
+
+    const cleanUrl = baseUrl.replace(/\/$/, '');
+    const url = `${cleanUrl}/message/sendText/${instance}`;
+
+    await fetch(url, {
+        method: 'POST',
+        headers: { 'apikey': apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            number: to,
+            options: { delay: 1000, presence: "composing" },
+            textMessage: { text: text }
+        })
+    });
 }
