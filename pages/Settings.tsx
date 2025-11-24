@@ -6,7 +6,7 @@ import { MessageSquare, Key, Server, CheckCircle, AlertCircle, Copy, ExternalLin
 const Settings: React.FC = () => {
   const { whatsappStatus, setWhatsappStatus, updateApiKey, isAiReady, properties, systemInstruction, blacklist, whatsappConfig, setWhatsappConfig } = useCRM();
   
-  const [connectionMethod, setConnectionMethod] = useState<'api' | 'uazapi' | 'vercel'>('uazapi'); // Default to Uazapi now
+  const [connectionMethod, setConnectionMethod] = useState<'api' | 'uazapi' | 'vercel'>('uazapi');
   
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
@@ -108,11 +108,11 @@ const Settings: React.FC = () => {
           } else if (data && data.qrcode && data.qrcode.base64) {
                setQrCodeBase64(data.qrcode.base64);
           } else {
-              alert("Não foi possível obter o QR Code. Verifique se a instância existe ou já está conectada.");
+              alert("Não foi possível obter o QR Code. Verifique se a instância existe ou já está conectada na sua Uazapi.");
           }
       } catch (error) {
           console.error("Erro ao buscar QR:", error);
-          alert("Erro ao conectar com a API Uazapi. Verifique a URL.");
+          alert("Erro de conexão com Uazapi. Verifique se a URL está correta e se o servidor aceita requisições (CORS).");
       } finally {
           setIsLoadingQr(false);
       }
@@ -203,14 +203,14 @@ const Settings: React.FC = () => {
                                 className={`px-4 md:px-6 py-4 text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${connectionMethod === 'uazapi' ? 'border-b-2 border-emerald-500 text-emerald-700 bg-emerald-50/50' : 'text-gray-500 hover:bg-gray-50'}`}
                             >
                                 <Globe size={18} />
-                                API Não Oficial (Uazapi)
+                                Conexão Uazapi (QR Code)
                             </button>
                              <button 
                                 onClick={() => setConnectionMethod('vercel')}
                                 className={`px-4 md:px-6 py-4 text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${connectionMethod === 'vercel' ? 'border-b-2 border-emerald-500 text-emerald-700 bg-emerald-50/50' : 'text-gray-500 hover:bg-gray-50'}`}
                             >
                                 <CloudLightning size={18} />
-                                Integração Vercel
+                                Automação Vercel
                             </button>
                             <button 
                                 onClick={() => setConnectionMethod('api')}
@@ -229,16 +229,18 @@ const Settings: React.FC = () => {
                             <div className="space-y-6 animate-fadeIn">
                                 <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
                                     <h3 className="font-bold text-blue-800 flex items-center gap-2 text-sm">
-                                        <QrCode size={16} /> Conexão via QR Code (Uazapi/Evolution)
+                                        <QrCode size={16} /> Configuração Uazapi
                                     </h3>
                                     <p className="text-xs text-blue-700 mt-1 leading-relaxed">
-                                        Use esta opção se você possui a Uazapi ou Evolution API rodando em um servidor. Isso permite conectar seu número atual via QR Code e usar o Vercel para as respostas da IA.
+                                        Conecte seu servidor Uazapi aqui para gerar o QR Code e enviar mensagens.
+                                        <br/>
+                                        <strong>Nota:</strong> Se o QR Code não aparecer, verifique se seu servidor Uazapi permite conexões deste site (CORS).
                                     </p>
                                 </div>
 
                                 <div className="grid grid-cols-1 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">URL da API</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">URL da API Uazapi</label>
                                         <input 
                                             type="text" 
                                             name="uazapiBaseUrl"
@@ -249,13 +251,13 @@ const Settings: React.FC = () => {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">API Key (Global)</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Global API Key</label>
                                         <input 
                                             type="password" 
                                             name="uazapiKey"
                                             value={formData.uazapiKey || ''}
                                             onChange={handleChange}
-                                            placeholder="Sua chave de segurança da API..."
+                                            placeholder="Sua chave de segurança..."
                                             className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-white"
                                         />
                                     </div>
@@ -278,13 +280,13 @@ const Settings: React.FC = () => {
                                         className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-200 flex items-center gap-2"
                                     >
                                         {isLoadingQr ? <Loader2 size={16} className="animate-spin"/> : <QrCode size={16}/>}
-                                        Ler QR Code
+                                        Gerar QR Code
                                     </button>
                                     <button 
                                         onClick={handleSaveConfig}
                                         className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-bold transition-colors flex items-center gap-2"
                                     >
-                                        <Save size={18} /> Salvar Configuração
+                                        <Save size={18} /> Salvar
                                     </button>
                                 </div>
 
@@ -292,7 +294,7 @@ const Settings: React.FC = () => {
                                     <div className="flex justify-center py-4 bg-white border border-gray-200 rounded-xl shadow-inner animate-fadeIn">
                                         <div className="text-center">
                                             <img src={qrCodeBase64} alt="QR Code" className="w-64 h-64 mx-auto mb-2" />
-                                            <p className="text-xs text-gray-500">Escaneie com seu WhatsApp</p>
+                                            <p className="text-xs text-gray-500">Abra o WhatsApp &gt; Aparelhos Conectados &gt; Conectar Aparelho</p>
                                         </div>
                                     </div>
                                 )}
@@ -303,26 +305,26 @@ const Settings: React.FC = () => {
                             <div className="animate-fadeIn space-y-6">
                                 <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
                                     <h4 className="font-bold text-blue-800 text-sm mb-2 flex items-center gap-2">
-                                        <CloudLightning size={16} /> Automação 24h
+                                        <CloudLightning size={16} /> Configuração do Webhook (Backend)
                                     </h4>
                                     <p className="text-sm text-blue-700 mb-2">
-                                        Configure o Webhook no painel da sua Uazapi/Evolution para que as mensagens cheguem ao Vercel.
+                                        Para a IA responder automaticamente 24h, configure o Webhook na sua Uazapi apontando para este projeto no Vercel.
                                     </p>
                                 </div>
 
                                 <div className="grid grid-cols-1 gap-6">
                                     <div>
-                                        <h4 className="font-bold text-gray-800 text-sm mb-3 flex items-center gap-2"><CheckCircle size={16} className="text-emerald-600"/> URL do Webhook</h4>
+                                        <h4 className="font-bold text-gray-800 text-sm mb-3 flex items-center gap-2"><CheckCircle size={16} className="text-emerald-600"/> URL para Webhook</h4>
                                         <CopyField 
-                                            label="Cole isto na sua Instância Uazapi:" 
+                                            label="Cole isto nas configurações da Instância Uazapi:" 
                                             value={`https://${window.location.hostname}/api/webhook`} 
                                         />
                                     </div>
 
                                     <div>
-                                        <h4 className="font-bold text-gray-800 text-sm mb-3 flex items-center gap-2"><CheckCircle size={16} className="text-emerald-600"/> Variáveis de Ambiente no Vercel</h4>
+                                        <h4 className="font-bold text-gray-800 text-sm mb-3 flex items-center gap-2"><CheckCircle size={16} className="text-emerald-600"/> Variáveis de Ambiente (Vercel)</h4>
                                         <div className="bg-gray-50 p-3 rounded text-xs font-mono text-gray-600 border border-gray-200 space-y-1">
-                                            <p>API_KEY (Gemini)</p>
+                                            <p>API_KEY (Sua chave Gemini)</p>
                                             <p>UAZAPI_URL</p>
                                             <p>UAZAPI_KEY</p>
                                             <p>UAZAPI_INSTANCE</p>
@@ -337,11 +339,11 @@ const Settings: React.FC = () => {
                                                 onClick={generateConfigJson}
                                                 className="w-full py-3 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition shadow-sm flex items-center justify-center gap-2"
                                             >
-                                                <RefreshCw size={16} /> Gerar Código
+                                                <RefreshCw size={16} /> Gerar JSON de Configuração
                                             </button>
                                         ) : (
                                             <div className="animate-fadeIn">
-                                                <label className="block text-xs font-bold text-gray-700 mb-1">Copie para CRM_CONFIG_JSON no Vercel:</label>
+                                                <label className="block text-xs font-bold text-gray-700 mb-1">Copie para a variável CRM_CONFIG_JSON no Vercel:</label>
                                                 <textarea 
                                                     readOnly
                                                     className="w-full h-32 p-2 bg-gray-800 text-green-400 font-mono text-[10px] rounded border border-gray-700 resize-none focus:outline-none"
@@ -351,7 +353,7 @@ const Settings: React.FC = () => {
                                                     onClick={() => { navigator.clipboard.writeText(configJson); alert("Copiado!"); }}
                                                     className="mt-2 w-full py-2 bg-emerald-600 text-white rounded font-bold text-xs hover:bg-emerald-700 transition"
                                                 >
-                                                    Copiar
+                                                    Copiar JSON
                                                 </button>
                                             </div>
                                         )}
@@ -362,6 +364,9 @@ const Settings: React.FC = () => {
 
                         {connectionMethod === 'api' && (
                             <div className="space-y-4 animate-fadeIn">
+                                <div className="bg-gray-50 p-3 rounded border border-gray-200 text-xs text-gray-500 mb-4">
+                                    Opção alternativa usando a API Oficial da Meta (Facebook). Requer conta verificada e pagamento por conversa.
+                                </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Token de Acesso (Meta)</label>
                                     <input 

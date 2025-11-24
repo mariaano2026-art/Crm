@@ -3,8 +3,9 @@ import { WhatsAppConfig, Message } from "../types";
 
 const GRAPH_API_VERSION = 'v20.0'; // Versão estável da API Meta
 
-// --- TYPES FOR EVOLUTION/BAILEYS PARSING ---
-interface EvolutionMessage {
+// --- TYPES FOR UAZAPI PARSING ---
+// Estrutura baseada em Baileys (usada pela Uazapi)
+interface UazapiMessageData {
     key: {
         remoteJid: string;
         fromMe: boolean;
@@ -21,28 +22,45 @@ interface EvolutionMessage {
     pushName?: string;
 }
 
+// Função para logar erros de forma segura
+const logError = (context: string, error: any) => {
+    console.error(`[WhatsAppService] Erro em ${context}:`, error);
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        console.warn("⚠️ POSSÍVEL ERRO DE CORS OU URL INVÁLIDA. Verifique se o servidor da Uazapi aceita requisições deste domínio ou se a URL está correta (https).");
+    }
+};
+
 export const fetchChats = async (config: WhatsAppConfig): Promise<any[]> => {
     if (config.provider !== 'uazapi' || !config.uazapiBaseUrl || !config.uazapiKey || !config.uazapiInstance) {
         return [];
     }
 
     const baseUrl = config.uazapiBaseUrl.replace(/\/$/, '');
-    // Endpoint comum da Evolution para buscar chats
+    // Endpoint para buscar chats na Uazapi
     const url = `${baseUrl}/chat/findChats/${config.uazapiInstance}`;
 
     try {
+        console.log(`[Uazapi] Buscando chats em: ${url}`);
         const response = await fetch(url, {
             method: 'GET',
-            headers: { 'apikey': config.uazapiKey }
+            headers: { 
+                'apikey': config.uazapiKey,
+                'Content-Type': 'application/json'
+            }
         });
         
-        if (!response.ok) return [];
+        if (!response.ok) {
+            console.error(`[Uazapi] Erro HTTP ao buscar chats: ${response.status} ${response.statusText}`);
+            return [];
+        }
         
         const data = await response.json();
-        // Evolution pode retornar array direto ou dentro de um objeto
-        return Array.isArray(data) ? data : (data.chats || []);
+        // Uazapi pode retornar array direto ou dentro de um objeto { chats: [] }
+        const chats = Array.isArray(data) ? data : (data.chats || []);
+        console.log(`[Uazapi] ${chats.length} chats encontrados.`);
+        return chats;
     } catch (error) {
-        console.error("Erro ao buscar chats Uazapi:", error);
+        logError('fetchChats', error);
         return [];
     }
 };
@@ -53,7 +71,7 @@ export const fetchMessages = async (config: WhatsAppConfig, remoteJid: string, c
     }
 
     const baseUrl = config.uazapiBaseUrl.replace(/\/$/, '');
-    // Endpoint para buscar mensagens de uma conversa
+    // Endpoint para buscar mensagens na Uazapi
     const url = `${baseUrl}/chat/findMessages/${config.uazapiInstance}`;
 
     try {
@@ -69,27 +87,35 @@ export const fetchMessages = async (config: WhatsAppConfig, remoteJid: string, c
                 },
                 options: {
                     limit: count,
-                    order: "DESC" // Buscar as mais recentes
+                    order: "DESC" // Buscar as mais recentes primeiro
                 }
             })
         });
 
-        if (!response.ok) return [];
+        if (!response.ok) {
+            console.error(`[Uazapi] Erro HTTP ao buscar mensagens: ${response.status}`);
+            return [];
+        }
 
         const rawData = await response.json();
-        const messages: EvolutionMessage[] = Array.isArray(rawData) ? rawData : (rawData.messages || []);
+        const messages: UazapiMessageData[] = Array.isArray(rawData) ? rawData : (rawData.messages || []);
 
         // Parse e conversão para o formato do CRM
-        return messages.map(msg => parseEvolutionMessage(msg)).filter((m): m is Message => !!m).reverse(); // Reverter para ordem cronológica (antiga -> nova)
+        const parsedMessages = messages
+            .map(msg => parseUazapiMessage(msg))
+            .filter((m): m is Message => !!m)
+            .reverse(); // Reverter para ordem cronológica (antiga -> nova) para o Chat UI
+
+        return parsedMessages;
 
     } catch (error) {
-        console.error("Erro ao buscar mensagens Uazapi:", error);
+        logError('fetchMessages', error);
         return [];
     }
 };
 
-// Função auxiliar para converter formato da Evolution para formato CRM
-const parseEvolutionMessage = (msg: EvolutionMessage): Message | null => {
+// Função auxiliar para converter formato da Uazapi (Baileys) para formato CRM
+const parseUazapiMessage = (msg: UazapiMessageData): Message | null => {
     if (!msg.message) return null;
 
     const isMe = msg.key.fromMe;
@@ -109,15 +135,13 @@ const parseEvolutionMessage = (msg: EvolutionMessage): Message | null => {
         text = msg.message.extendedTextMessage.text;
     }
 
-    // Media
+    // Media handling
+    // Nota: A Uazapi geralmente retorna a URL da mídia se ela estiver disponível publicamente ou base64.
     if (msg.message.imageMessage) {
         isMedia = true;
         mediaType = 'image';
         text = msg.message.imageMessage.caption || 'Imagem';
-        // Nota: URL da Evolution pode precisar de autenticação ou proxy.
-        // Aqui assumimos que a Evolution retorna uma URL acessível ou Base64.
-        // Se não retornar URL direta, pode ser necessário usar endpoint de download de mídia.
-        mediaUrl = msg.message.imageMessage.url; 
+        mediaUrl = msg.message.imageMessage.url || msg.message.imageMessage.jpegThumbnail; 
     } else if (msg.message.videoMessage) {
         isMedia = true;
         mediaType = 'video';
@@ -130,6 +154,7 @@ const parseEvolutionMessage = (msg: EvolutionMessage): Message | null => {
         mediaUrl = msg.message.audioMessage.url;
     }
 
+    // Se não achou texto nem mídia, pode ser mensagem de sistema ou status, ignorar por enquanto
     if (!text && !isMedia) return null;
 
     return {
@@ -154,7 +179,7 @@ export const sendToWhatsApp = async (
     // Limpeza do número de telefone (apenas números)
     const cleanPhone = to.replace(/\D/g, '');
 
-    // --- UAZAPI / EVOLUTION API LOGIC ---
+    // --- UAZAPI LOGIC ---
     if (config.provider === 'uazapi') {
         if (!config.uazapiBaseUrl || !config.uazapiKey || !config.uazapiInstance) {
             console.warn("Uazapi: Configuração incompleta.");
@@ -188,9 +213,6 @@ export const sendToWhatsApp = async (
         } else {
             // Media handling for Uazapi
             url = `${baseUrl}/message/sendMedia/${instance}`;
-            // Nota: Uazapi geralmente espera URL ou Base64.
-            // Se o conteúdo for URL local (Blob), não funcionará sem upload.
-            // Assumimos aqui que 'content' é uma URL pública ou Base64 completa.
             body = {
                 number: cleanPhone,
                 options: {
@@ -200,30 +222,32 @@ export const sendToWhatsApp = async (
                 mediaMessage: {
                     mediatype: type, // image, video, audio
                     caption: caption || '',
-                    media: content 
+                    media: content // Espera URL ou Base64
                 }
             };
         }
 
         try {
+            console.log(`[Uazapi] Enviando mensagem para ${cleanPhone}...`);
             const response = await fetch(url, {
                 method: 'POST',
                 headers: headers,
                 body: JSON.stringify(body)
             });
+            
             const data = await response.json();
             if (!response.ok) {
-                console.error("Erro Uazapi:", data);
+                console.error("Erro Uazapi Response:", data);
                 return false;
             }
             return true;
         } catch (error) {
-            console.error("Erro de rede Uazapi:", error);
+            logError('sendToWhatsApp (Uazapi)', error);
             return false;
         }
     }
 
-    // --- META CLOUD API LOGIC ---
+    // --- META CLOUD API LOGIC (Fallback) ---
     else if (config.provider === 'meta' || !config.provider) {
         if (!config.accessToken || !config.phoneNumberId) {
             console.warn("WhatsApp Meta: Credenciais não configuradas.");
