@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { Lead, Property, Message, View, LeadStatus, FollowUpConfig, MessageTimerSettings, VoiceSettings, QuickReply, Tag, WhatsAppConfig } from '../types';
 import { MOCK_LEADS, MOCK_PROPERTIES, DEFAULT_FOLLOWUP_CONFIG, DEFAULT_TIMER_SETTINGS, VOICE_PRESETS, DEFAULT_TAGS } from '../constants';
 import { generateAIResponse, generateFollowUp, classifyLeadTemperature, generateAudioFromText, isAIConfigured, transcribeAudio } from '../services/geminiService';
+import { sendToWhatsApp } from '../services/whatsappService';
 
 export const DEFAULT_SYSTEM_PROMPT = `🚀 PROMPT FINAL – IA CORRETOR HUMANIZADA (VERSÃO DE ALTA CONVERSÃO)
 
@@ -596,10 +597,30 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!selectedLeadId) return;
     let newPausedUntil: Date | undefined = undefined;
 
+    const currentLead = leads.find(l => l.id === selectedLeadId);
+    if (!currentLead) return;
+
     if (sender === 'agent') {
         resolveAttention(selectedLeadId);
         if (aiPauseDuration > 0) {
             newPausedUntil = new Date(Date.now() + aiPauseDuration * 60 * 1000);
+        }
+
+        // --- REAL WHATSAPP SENDING LOGIC ---
+        // Se a mensagem for do Agente (ou IA), tentamos enviar para a API da Meta
+        // Se for user, assumimos que veio do webhook ou é simulação, não reenviamos.
+        
+        const isRealConnection = whatsappConfig.accessToken && whatsappConfig.phoneNumberId;
+        
+        if (isRealConnection) {
+             // Formata o tipo para o serviço
+             const contentType = isMedia ? mediaType : 'text';
+             
+             // Envia em background (fire and forget para não travar a UI, mas logar erro se falhar)
+             sendToWhatsApp(whatsappConfig, currentLead.phone, contentType, isMedia ? (mediaUrl || '') : text)
+                .then(success => {
+                    if(!success) console.error("Falha ao enviar mensagem para WhatsApp API");
+                });
         }
     }
 
@@ -631,7 +652,6 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     if (sender === 'user') {
-        const currentLead = leads.find(l => l.id === selectedLeadId);
         if (currentLead && checkAttentionTriggers(text, 'user')) {
              setLeads(prev => prev.map(l => l.id === selectedLeadId ? { ...l, requiresAttention: true } : l));
         }
@@ -788,24 +808,32 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
              }
 
              if (mediaToSend) {
+                 const mediaMsg: Message = {
+                     id: Date.now().toString() + "media",
+                     sender: 'agent',
+                     text: mediaToSend!.caption,
+                     timestamp: new Date(),
+                     isMedia: true,
+                     mediaUrl: mediaToSend!.url,
+                     mediaType: mediaToSend!.type
+                 };
+
                  setLeads(prev => prev.map(l => {
                      if (l.id === selectedLeadId) {
                          return {
                              ...l,
-                             messages: [...l.messages, {
-                                 id: Date.now().toString() + "media",
-                                 sender: 'agent',
-                                 text: mediaToSend!.caption,
-                                 timestamp: new Date(),
-                                 isMedia: true,
-                                 mediaUrl: mediaToSend!.url,
-                                 mediaType: mediaToSend!.type
-                             }],
+                             messages: [...l.messages, mediaMsg],
                              unreadCount: 0
                          };
                      }
                      return l;
                  }));
+                 
+                 // Envia mídia para o WhatsApp Real
+                 if(whatsappConfig.accessToken) {
+                     sendToWhatsApp(whatsappConfig, freshLead.phone, mediaToSend!.type, mediaToSend!.url, mediaToSend!.caption);
+                 }
+
                  await new Promise(r => setTimeout(r, 1000));
              }
 
@@ -836,6 +864,20 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                          }
                          return l;
                      }));
+                     
+                     // Envia áudio para o WhatsApp Real
+                     if(whatsappConfig.accessToken) {
+                         // Nota: A API do WhatsApp para áudio requer um link público ou ID de mídia. 
+                         // Como audioUrl é um Blob local, isso NÃO funcionará diretamente sem upload.
+                         // Para este demo, enviamos o texto transcrito como fallback se for blob.
+                         if(audioUrl.startsWith('http')) {
+                            sendToWhatsApp(whatsappConfig, freshLead.phone, 'audio', audioUrl);
+                         } else {
+                             // Fallback: Envia texto pois não temos servidor de upload de mídia aqui
+                             sendToWhatsApp(whatsappConfig, freshLead.phone, 'text', `[Áudio Gerado pela IA]: ${finalText}`);
+                         }
+                     }
+
                      audioSent = true;
                  }
                  setAiActivity('idle');
@@ -848,21 +890,30 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     setAiActivity('typing');
                     const typingDuration = Math.min(chunk.length * timerSettings.charDelay, timerSettings.maxDelay);
                     await new Promise(resolve => setTimeout(resolve, typingDuration));
+                    
+                    const chunkMsg: Message = {
+                        id: Date.now().toString() + Math.random(),
+                        sender: 'agent',
+                        text: chunk.trim(),
+                        timestamp: new Date()
+                    };
+
                     setLeads(prev => prev.map(l => {
                         if (l.id === selectedLeadId) {
                             return {
                                 ...l,
-                                messages: [...l.messages, {
-                                    id: Date.now().toString() + Math.random(),
-                                    sender: 'agent',
-                                    text: chunk.trim(),
-                                    timestamp: new Date()
-                                }],
+                                messages: [...l.messages, chunkMsg],
                                 unreadCount: 0
                             };
                         }
                         return l;
                     }));
+
+                    // Envia texto chunk para WhatsApp Real
+                    if(whatsappConfig.accessToken) {
+                        sendToWhatsApp(whatsappConfig, freshLead.phone, 'text', chunk.trim());
+                    }
+
                     if (checkAttentionTriggers(chunk, 'ai')) attentionNeeded = true;
                     setAiActivity('idle');
                     await new Promise(resolve => setTimeout(resolve, 600)); 

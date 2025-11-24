@@ -1,21 +1,27 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useCRM } from '../context/CRMContext';
-import { MessageSquare, Key, Server, CheckCircle, AlertCircle, Copy, ExternalLink, Zap, QrCode, Wifi, Eye, EyeOff, Save, Trash2, RefreshCw, Brain, CloudLightning, FileJson, Info } from 'lucide-react';
+import { MessageSquare, Key, Server, CheckCircle, AlertCircle, Copy, ExternalLink, Zap, QrCode, Wifi, Eye, EyeOff, Save, Trash2, RefreshCw, Brain, CloudLightning, FileJson, Info, Smartphone, Printer, Hash, Loader2, XCircle } from 'lucide-react';
 
 const Settings: React.FC = () => {
   const { whatsappStatus, setWhatsappStatus, updateApiKey, isAiReady, properties, systemInstruction, blacklist, whatsappConfig, setWhatsappConfig } = useCRM();
   
   // Connection Method Toggle
-  const [connectionMethod, setConnectionMethod] = useState<'api' | 'qrcode' | 'vercel'>('api');
+  const [connectionMethod, setConnectionMethod] = useState<'api' | 'pairing' | 'qrcode' | 'vercel'>('api');
   
   // API Key State
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
 
-  // QR Code State
-  const [qrStatus, setQrStatus] = useState<'idle' | 'generating' | 'ready' | 'expired'>('idle');
+  // QR Code State (Now a Link Generator)
+  const [qrPhoneNumber, setQrPhoneNumber] = useState('');
+  const [generatedQrLink, setGeneratedQrLink] = useState('');
   
+  // Pairing Code State
+  const [pairingNumber, setPairingNumber] = useState('');
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
+
   // Config Export State
   const [configJson, setConfigJson] = useState('');
 
@@ -82,37 +88,54 @@ const Settings: React.FC = () => {
 
   const handleConnectAPI = () => {
     setIsTesting(true);
+    // Simulation of verification (In a real app, you would hit an endpoint to check validity)
     setTimeout(() => {
       setIsTesting(false);
       if (formData.accessToken && formData.phoneNumberId) {
         setWhatsappConfig(formData);
-        alert("Configurações salvas e conectadas! Agora o chat pode sincronizar etiquetas e mensagens.");
+        alert("✅ Conectado! O CRM agora tem permissão para enviar mensagens via API Oficial.");
       } else {
-        alert("Por favor, preencha o Token de Acesso e o ID do Telefone.");
+        alert("❌ Erro: Por favor, preencha o Token de Acesso e o ID do Telefone.");
       }
     }, 1500);
   };
 
-  const handleGenerateQR = () => {
-    setQrStatus('generating');
-    setTimeout(() => {
-        setQrStatus('ready');
-        setTimeout(() => {
-            if (whatsappStatus !== 'connected') {
-                // Just a visual feedback loop
-            }
-        }, 5000);
-    }, 2000);
-  };
-
-  const handleSimulateScan = () => {
-      setWhatsappStatus('connected');
-  }
-
   const handleDisconnect = () => {
     setWhatsappConfig({ accessToken: '', phoneNumberId: '', wabaId: '' });
     setFormData({ accessToken: '', phoneNumberId: '', wabaId: '' });
-    setQrStatus('idle');
+  };
+
+  // QR Code Generator Function
+  const generateMyLink = () => {
+      if (!qrPhoneNumber) return;
+      // Clean number
+      const clean = qrPhoneNumber.replace(/\D/g, '');
+      const link = `https://wa.me/${clean}`;
+      setGeneratedQrLink(link);
+  };
+
+  // Pairing Code Logic (Simulation)
+  const generatePairingCode = () => {
+      if (!pairingNumber || pairingNumber.length < 10) {
+          alert("Por favor, digite um número válido com DDD e código do país (Ex: 5511999999999)");
+          return;
+      }
+      setIsGeneratingCode(true);
+      
+      // Simulação de chamada ao backend para gerar código via Baileys/WWebJS
+      setTimeout(() => {
+          // Gerando um código aleatório estilo WhatsApp (ex: 4X5-B2A-99Z)
+          const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+          let code = "";
+          for(let i=0; i<8; i++) {
+              code += chars.charAt(Math.floor(Math.random() * chars.length));
+          }
+          // Formatando XXX-XXX-XX
+          const formatted = `${code.substring(0,3)}-${code.substring(3,7)}-${code.substring(7)}`;
+          
+          setPairingCode(formatted);
+          setIsGeneratingCode(false);
+      }, 2500);
   };
 
   const CopyField = ({ label, value }: { label: string, value: string }) => (
@@ -167,7 +190,7 @@ const Settings: React.FC = () => {
                         <div className={`p-4 rounded-lg border ${whatsappStatus === 'connected' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2 font-medium text-gray-800">
-                                    <MessageSquare size={18} /> WhatsApp
+                                    <MessageSquare size={18} /> WhatsApp API
                                 </div>
                                 {whatsappStatus === 'connected' 
                                     ? <CheckCircle size={18} className="text-green-600" />
@@ -175,7 +198,7 @@ const Settings: React.FC = () => {
                                 }
                             </div>
                             <p className={`text-xs ${whatsappStatus === 'connected' ? 'text-green-700' : 'text-red-700'}`}>
-                                {whatsappStatus === 'connected' ? 'Conectado e pronto.' : 'Desconectado. Configure abaixo.'}
+                                {whatsappStatus === 'connected' ? 'Conectado via Cloud API.' : 'Desconectado. Configure a API.'}
                             </p>
                         </div>
 
@@ -215,14 +238,21 @@ const Settings: React.FC = () => {
                                 className={`px-4 md:px-6 py-4 text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${connectionMethod === 'vercel' ? 'border-b-2 border-emerald-500 text-emerald-700 bg-emerald-50/50' : 'text-gray-500 hover:bg-gray-50'}`}
                             >
                                 <CloudLightning size={18} />
-                                Integração Vercel (24h)
+                                Integração Vercel
+                            </button>
+                            <button 
+                                onClick={() => setConnectionMethod('pairing')}
+                                className={`px-4 md:px-6 py-4 text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${connectionMethod === 'pairing' ? 'border-b-2 border-emerald-500 text-emerald-700 bg-emerald-50/50' : 'text-gray-500 hover:bg-gray-50'}`}
+                            >
+                                <Hash size={18} />
+                                Código de Pareamento
                             </button>
                             <button 
                                 onClick={() => setConnectionMethod('qrcode')}
                                 className={`px-4 md:px-6 py-4 text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${connectionMethod === 'qrcode' ? 'border-b-2 border-emerald-500 text-emerald-700 bg-emerald-50/50' : 'text-gray-500 hover:bg-gray-50'}`}
                             >
                                 <QrCode size={18} />
-                                Conexão QR Code
+                                Gerador de Link
                             </button>
                         </div>
                     </div>
@@ -236,7 +266,7 @@ const Settings: React.FC = () => {
                                         <CloudLightning size={16} /> Automação 24h Garantida
                                     </h4>
                                     <p className="text-sm text-blue-700 mb-2">
-                                        Para que a IA conheça seus imóveis atualizados e novas regras mesmo quando você fecha o site, precisamos enviar esses dados para o Vercel.
+                                        Para que a IA responda clientes 24h por dia (mesmo com o site fechado), configure o Webhook no Vercel.
                                     </p>
                                 </div>
 
@@ -254,7 +284,8 @@ const Settings: React.FC = () => {
                                     </div>
 
                                     <div>
-                                        <h4 className="font-bold text-gray-800 text-sm mb-3 flex items-center gap-2"><CheckCircle size={16} className="text-emerald-600"/> Passo 2: Variáveis Básicas (Vercel)</h4>
+                                        <h4 className="font-bold text-gray-800 text-sm mb-3 flex items-center gap-2"><CheckCircle size={16} className="text-emerald-600"/> Passo 2: Variáveis de Ambiente</h4>
+                                        <p className="text-xs text-gray-500 mb-2">No painel da Vercel, adicione:</p>
                                         <div className="bg-gray-50 p-3 rounded text-xs font-mono text-gray-600 border border-gray-200 space-y-1">
                                             <p>API_KEY</p>
                                             <p>WHATSAPP_ACCESS_TOKEN</p>
@@ -263,9 +294,9 @@ const Settings: React.FC = () => {
                                     </div>
 
                                     <div className="border-t border-gray-200 pt-4">
-                                        <h4 className="font-bold text-gray-800 text-sm mb-2 flex items-center gap-2"><FileJson size={16} className="text-emerald-600"/> Passo 3: Sincronizar Dados (CRÍTICO)</h4>
+                                        <h4 className="font-bold text-gray-800 text-sm mb-2 flex items-center gap-2"><FileJson size={16} className="text-emerald-600"/> Passo 3: Sincronizar Cérebro da IA</h4>
                                         <p className="text-xs text-gray-500 mb-4">
-                                            Sempre que você alterar imóveis, preços ou prompts, clique no botão abaixo. Ele gerará um código. Copie esse código e atualize a variável <code>CRM_CONFIG_JSON</code> no painel do Vercel.
+                                            Sempre que alterar imóveis ou prompts, gere este código e cole na variável <code>CRM_CONFIG_JSON</code> no Vercel.
                                         </p>
                                         
                                         {!configJson ? (
@@ -277,7 +308,7 @@ const Settings: React.FC = () => {
                                             </button>
                                         ) : (
                                             <div className="animate-fadeIn">
-                                                <label className="block text-xs font-bold text-gray-700 mb-1">Copie TUDO abaixo e cole na variável CRM_CONFIG_JSON no Vercel:</label>
+                                                <label className="block text-xs font-bold text-gray-700 mb-1">Copie TUDO abaixo e cole no Vercel:</label>
                                                 <textarea 
                                                     readOnly
                                                     className="w-full h-32 p-2 bg-gray-800 text-green-400 font-mono text-[10px] rounded border border-gray-700 resize-none focus:outline-none"
@@ -306,14 +337,20 @@ const Settings: React.FC = () => {
 
                         {connectionMethod === 'api' && (
                             <div className="space-y-4 animate-fadeIn">
-                                <div className="mb-4">
-                                    <h3 className="font-semibold text-gray-800 flex items-center gap-2">
-                                        Credenciais da Meta (Teste Local)
+                                <div className="mb-4 bg-emerald-50 border border-emerald-200 p-4 rounded-lg">
+                                    <h3 className="font-bold text-emerald-800 flex items-center gap-2 text-sm">
+                                        <CheckCircle size={16} /> Método Recomendado
                                     </h3>
-                                    <p className="text-sm text-gray-500 mt-1">Use esta aba para conectar diretamente. Isso ativará a sincronização de etiquetas e mensagens em tempo real.</p>
+                                    <p className="text-xs text-emerald-700 mt-1 leading-relaxed">
+                                        A API Oficial (Cloud API) é a única forma de garantir que seu CRM funcione nesta versão Web sem necessidade de servidores complexos.
+                                    </p>
+                                    <a href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started" target="_blank" className="text-xs text-emerald-900 font-bold underline mt-2 block">
+                                        Clique aqui para criar sua conta Meta Developers
+                                    </a>
                                 </div>
+
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Token de Acesso</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Token de Acesso (Permanente ou Temporário)</label>
                                     <input 
                                         type="password" 
                                         name="accessToken"
@@ -325,24 +362,24 @@ const Settings: React.FC = () => {
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">ID do Número</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">ID do Número de Telefone</label>
                                         <input 
                                             type="text" 
                                             name="phoneNumberId"
                                             value={formData.phoneNumberId}
                                             onChange={handleChange}
-                                            placeholder="1059..."
+                                            placeholder="Ex: 1059..."
                                             className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all bg-white text-gray-800"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">ID da WABA</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">ID da Conta WhatsApp (WABA)</label>
                                         <input 
                                             type="text" 
                                             name="wabaId"
                                             value={formData.wabaId}
                                             onChange={handleChange}
-                                            placeholder="1012..."
+                                            placeholder="Ex: 1012..."
                                             className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all bg-white text-gray-800"
                                         />
                                     </div>
@@ -369,86 +406,123 @@ const Settings: React.FC = () => {
                                 </div>
                             </div>
                         )}
+
+                        {connectionMethod === 'pairing' && (
+                            <div className="animate-fadeIn">
+                                {/* TECHNICAL WARNING BANNER */}
+                                <div className="mb-6 bg-red-50 border border-red-200 p-4 rounded-lg">
+                                    <h3 className="font-bold text-red-800 text-sm mb-2 flex items-center gap-2">
+                                        <XCircle size={18} /> Incompatível com Aplicação Web
+                                    </h3>
+                                    <p className="text-xs text-red-700 leading-relaxed mb-2">
+                                        <strong>Esta opção não funcionará nesta versão.</strong>
+                                    </p>
+                                    <p className="text-xs text-red-700 leading-relaxed">
+                                        O método "Pareamento" depende de uma conexão WebSocket constante (via biblioteca Baileys/Node.js) que não pode rodar em navegadores ou serverless functions simples. Para conectar este aplicativo agora, use a aba <strong>API Oficial</strong>.
+                                    </p>
+                                </div>
+
+                                <div className="flex flex-col gap-6 opacity-60 pointer-events-none grayscale">
+                                    {!pairingCode ? (
+                                        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center justify-center text-center">
+                                             <label className="block text-sm font-bold text-gray-700 mb-3">Digite seu número (com DDD e Código do País)</label>
+                                             <input 
+                                                type="text" 
+                                                value={pairingNumber}
+                                                onChange={(e) => setPairingNumber(e.target.value)}
+                                                placeholder="Ex: 5511999999999"
+                                                className="w-full max-w-sm text-center text-lg tracking-wider p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-emerald-500 outline-none mb-4"
+                                             />
+                                             <button 
+                                                onClick={generatePairingCode}
+                                                disabled={isGeneratingCode || !pairingNumber}
+                                                className="bg-emerald-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-emerald-700 transition disabled:opacity-50 flex items-center gap-2"
+                                             >
+                                                {isGeneratingCode ? <Loader2 size={18} className="animate-spin" /> : <Hash size={18} />}
+                                                {isGeneratingCode ? 'Gerando...' : 'Gerar Código de Pareamento'}
+                                             </button>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-gray-800 text-white p-8 rounded-xl shadow-xl flex flex-col items-center justify-center animate-fadeIn text-center relative overflow-hidden">
+                                            {/* Code Display Simulation */}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                         
                         {connectionMethod === 'qrcode' && (
                             <div className="animate-fadeIn">
-                                {whatsappStatus === 'connected' ? (
-                                     <div className="text-center py-10">
-                                        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                            <CheckCircle size={40} className="text-green-600" />
-                                        </div>
-                                        <h3 className="text-xl font-bold text-gray-800 mb-2">WhatsApp Conectado!</h3>
-                                        <p className="text-gray-500 mb-6">Seu aparelho está sincronizado e pronto para enviar mensagens.</p>
-                                        <button 
-                                            onClick={handleDisconnect}
-                                            className="px-6 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 font-medium transition-colors"
-                                        >
-                                            Desconectar Sessão
-                                        </button>
-                                     </div>
-                                ) : (
-                                    <div className="flex flex-col md:flex-row gap-8">
-                                        <div className="flex-1 space-y-6">
-                                            <div>
-                                                <h3 className="font-semibold text-gray-800 mb-1">Conectar Novo Aparelho</h3>
-                                                <p className="text-sm text-gray-500">Esta opção requer que o navegador fique aberto. Para automação 24h, use a opção "Integração Vercel".</p>
+                                {/* TECHNICAL WARNING BANNER */}
+                                <div className="mb-6 bg-orange-50 border border-orange-200 p-4 rounded-lg">
+                                     <h3 className="font-bold text-orange-800 text-sm mb-1 flex items-center gap-2">
+                                        <AlertCircle size={16} /> Apenas Gerador de Links
+                                    </h3>
+                                    <p className="text-xs text-orange-700 leading-relaxed">
+                                        Assim como o Pareamento, o QR Code de conexão real (tipo WhatsApp Web) exige um servidor Node.js dedicado. 
+                                        A ferramenta abaixo serve apenas para criar links "wa.me" para marketing, não para conectar o sistema.
+                                    </p>
+                                </div>
+
+                                <div className="flex flex-col md:flex-row gap-8">
+                                    <div className="flex-1 space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 mb-1">Seu Número (com DDD)</label>
+                                            <div className="flex gap-2">
+                                                <input 
+                                                    type="text" 
+                                                    value={qrPhoneNumber}
+                                                    onChange={(e) => setQrPhoneNumber(e.target.value)}
+                                                    placeholder="5511999999999"
+                                                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
+                                                />
+                                                <button 
+                                                    onClick={generateMyLink}
+                                                    disabled={!qrPhoneNumber}
+                                                    className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-emerald-700 disabled:opacity-50"
+                                                >
+                                                    Gerar
+                                                </button>
                                             </div>
-                                            
-                                            <ol className="space-y-4">
-                                                <li className="flex items-start gap-3">
-                                                    <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 mt-0.5">1</div>
-                                                    <p className="text-sm text-gray-600">Abra o WhatsApp no celular.</p>
-                                                </li>
-                                                <li className="flex items-start gap-3">
-                                                    <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 mt-0.5">2</div>
-                                                    {/* FIX: Escaped greater-than symbol to prevent TS1382 */}
-                                                    <p className="text-sm text-gray-600">Vá em <strong>Aparelhos Conectados</strong> {' > '} <strong>Conectar Aparelho</strong>.</p>
-                                                </li>
-                                                <li className="flex items-start gap-3">
-                                                    <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 mt-0.5">3</div>
-                                                    <p className="text-sm text-gray-600">Escaneie o código ao lado.</p>
-                                                </li>
-                                            </ol>
-                                        </div>
-
-                                        <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 rounded-xl p-6 border border-gray-200 min-h-[300px]">
-                                            {qrStatus === 'idle' && (
-                                                <div className="text-center">
-                                                    <QrCode size={64} className="text-gray-300 mx-auto mb-4" />
-                                                    <button 
-                                                        onClick={handleGenerateQR}
-                                                        className="bg-emerald-600 text-white px-6 py-2 rounded-lg hover:bg-emerald-700 transition shadow-sm font-medium"
-                                                    >
-                                                        Gerar QR Code
-                                                    </button>
-                                                </div>
-                                            )}
-
-                                            {qrStatus === 'generating' && (
-                                                <div className="text-center">
-                                                    <RefreshCw size={40} className="text-emerald-500 animate-spin mx-auto mb-4" />
-                                                    <p className="text-sm text-gray-500">Gerando sessão segura...</p>
-                                                </div>
-                                            )}
-
-                                            {qrStatus === 'ready' && (
-                                                <div className="flex flex-col items-center">
-                                                    <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-200 mb-4 relative group cursor-pointer" onClick={handleSimulateScan}>
-                                                        <img 
-                                                            src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=ConstrutoraGPT-Auth-Session" 
-                                                            alt="Scan Me" 
-                                                            className="w-48 h-48"
-                                                        />
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-sm text-emerald-600 font-medium animate-pulse">
-                                                        <Wifi size={16} />
-                                                        Aguardando leitura...
-                                                    </div>
-                                                </div>
-                                            )}
                                         </div>
                                     </div>
-                                )}
+
+                                    <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 rounded-xl p-6 border border-gray-200 min-h-[300px]">
+                                        {!generatedQrLink ? (
+                                            <div className="text-center text-gray-400">
+                                                <QrCode size={48} className="mx-auto mb-2 opacity-20" />
+                                                <p className="text-sm">Digite seu número para gerar o código.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col items-center animate-fadeIn">
+                                                <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-200 mb-4">
+                                                    <img 
+                                                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${generatedQrLink}`} 
+                                                        alt="WhatsApp Link" 
+                                                        className="w-40 h-40"
+                                                    />
+                                                </div>
+                                                <p className="text-xs text-gray-500 font-mono mb-3 bg-white px-2 py-1 rounded border border-gray-200 truncate max-w-[200px]">
+                                                    {generatedQrLink}
+                                                </p>
+                                                <div className="flex gap-2">
+                                                     <button 
+                                                        onClick={() => window.open(generatedQrLink, '_blank')}
+                                                        className="flex items-center gap-1 px-3 py-1.5 bg-green-500 text-white rounded text-xs font-bold hover:bg-green-600"
+                                                     >
+                                                         <Smartphone size={14} /> Testar
+                                                     </button>
+                                                     <button 
+                                                        onClick={() => window.print()}
+                                                        className="flex items-center gap-1 px-3 py-1.5 bg-gray-200 text-gray-700 rounded text-xs font-bold hover:bg-gray-300"
+                                                     >
+                                                         <Printer size={14} /> Imprimir
+                                                     </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>
